@@ -17,6 +17,7 @@ import { getFeedbacks } from './feedback'
 import { httpHandler } from './http'
 import { getPresets } from './presets'
 import { RaidBrowser, type RaidCandidate } from './raidBrowser'
+import { selectConfiguredChannel } from './channelSelection'
 import { getUpgrades } from './upgrade'
 import { Variables } from './variables'
 
@@ -264,6 +265,11 @@ class TwitchInstance extends InstanceBase<Config> {
     this.channels.sort((a, b) => {
       return a.username < b.username ? -1 : 1
     })
+
+    this.selectedChannel = selectConfiguredChannel(
+      this.selectedChannel,
+      this.channels.map((channel) => channel.username),
+    )
 
     await this.API.updateUsers(this)
 
