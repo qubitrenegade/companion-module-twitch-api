@@ -15,7 +15,7 @@ Before getting started, please note that some functions require an Auth token fr
 
 ### Getting started
 
-The first thing you will need to do is set up which channels you wish to monitor, this list of channels will be tracked for when they go online/offline, track chat, and be usable in Actions/Feedbacks.
+The first thing you will need to do is set up which channels you wish to monitor, this list of channels will be tracked for when they go online/offline, track chat, and be usable in Actions/Feedbacks. The first configured channel is selected automatically; a **Select Channel** action can change the active selected-channel variables later.
 
 Next you will need to do after adding the Twitch instance to Companion is set up what permissions you plan to use in the Config screen for the connection. Keep in mind that some API requests require permissions from the broadcaster themselves, some can use permissions from a moderator or editor, and some can be done by any user.
 

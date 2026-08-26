@@ -26,6 +26,7 @@ Unit tests mock Twitch responses and must not access Twitch. The Node workflow r
 - Added a configurable raid-target browser for prioritized Twitch teams and followed live channels
 - Added wrapped previous, next, direct-select, refresh, and explicit start-raid actions
 - Added raid candidate variables, feedbacks, presets, pagination, source isolation, and refresh concurrency protection
+- Selects the first configured channel on startup so selected-channel variables work without a separate action
 
 **v4.2.0**
 
