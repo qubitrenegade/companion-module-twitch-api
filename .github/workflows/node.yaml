@@ -31,6 +31,11 @@ jobs:
           yarn build
         env:
           CI: true
+      - name: Test unit suite
+        run: |
+          yarn test --runInBand
+        env:
+          CI: true
       - name: Test package
         run: |
           yarn companion-module-build

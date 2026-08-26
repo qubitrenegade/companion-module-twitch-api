@@ -12,10 +12,12 @@ import { Auth } from './auth'
 import { getActions } from './actions'
 import { Chat } from './chat'
 import type { Config } from './config'
-import { getConfigFields } from './config'
+import { getConfigFields, normalizeConfig, RAID_BROWSER_CONFIG_DEFAULTS } from './config'
 import { getFeedbacks } from './feedback'
 import { httpHandler } from './http'
 import { getPresets } from './presets'
+import { RaidBrowser, type RaidCandidate } from './raidBrowser'
+import { getUpgrades } from './upgrade'
 import { Variables } from './variables'
 
 interface Channel {
@@ -122,7 +124,7 @@ class TwitchInstance extends InstanceBase<Config> {
     broadcasterSubscriptions: true,
     broadcasterVIPs: true,
     editorStreamMarkers: true,
-		editorCreateClips: true,
+    editorCreateClips: true,
     moderatorAnnouncements: true,
     moderatorAutomod: true,
     moderatorChatModeration: true,
@@ -135,13 +137,17 @@ class TwitchInstance extends InstanceBase<Config> {
     moderatorWarnings: true,
     userChat: true,
     userClips: true,
+    ...RAID_BROWSER_CONFIG_DEFAULTS,
   }
   public connected = false
   public data = {}
   public updateStateInterval: ReturnType<typeof setInterval> | null = null
   public selectedChannel = ''
+  public raidCandidates: RaidCandidate[] = []
+  public raidCandidateIndex = 0
 
   public readonly chat = new Chat(this)
+  public readonly raidBrowser = new RaidBrowser(this)
   public readonly variables = new Variables(this)
 
   /**
@@ -149,7 +155,7 @@ class TwitchInstance extends InstanceBase<Config> {
    */
   public async init(config: Config): Promise<void> {
     this.log('debug', `Process ID: ${process.pid}`)
-    this.config = config
+    this.config = normalizeConfig(config)
     this.updateInstance()
     this.variables.updateDefinitions()
     this.auth.init()
@@ -169,10 +175,18 @@ class TwitchInstance extends InstanceBase<Config> {
    * @description triggered every time the config for this instance is saved
    */
   public async configUpdated(config: Config): Promise<void> {
-    const channelUpdate = config.channels !== this.config.channels
-    this.config = config
+    const normalizedConfig = normalizeConfig(config)
+    const channelUpdate = normalizedConfig.channels !== this.config.channels
+    const raidBrowserUpdate =
+      normalizedConfig.raidBrowserEnabled !== this.config.raidBrowserEnabled ||
+      normalizedConfig.raidBrowserTeams !== this.config.raidBrowserTeams ||
+      normalizedConfig.raidBrowserIncludeFollowed !== this.config.raidBrowserIncludeFollowed ||
+      normalizedConfig.raidBrowserRefreshSeconds !== this.config.raidBrowserRefreshSeconds ||
+      normalizedConfig.userReadFollows !== this.config.userReadFollows
+    this.config = normalizedConfig
 
     if (channelUpdate) this.updateInstance()
+    if (raidBrowserUpdate) this.raidBrowser.reconfigure(this.config.raidBrowserEnabled)
     this.variables.updateDefinitions()
   }
 
@@ -183,6 +197,7 @@ class TwitchInstance extends InstanceBase<Config> {
     this.chat.destroy()
     this.auth.destroy()
     this.API.destroy()
+    this.raidBrowser.destroy()
     if (this.updateStateInterval !== null) clearInterval(this.updateStateInterval)
 
     this.log('debug', `Instance destroyed: ${this.id}`)
@@ -292,4 +307,4 @@ class TwitchInstance extends InstanceBase<Config> {
 
 export = TwitchInstance
 
-runEntrypoint(TwitchInstance, [])
+runEntrypoint(TwitchInstance, getUpgrades())

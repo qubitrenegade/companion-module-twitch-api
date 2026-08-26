@@ -12,6 +12,9 @@ import { combineRgb } from '@companion-module/base'
 export interface TwitchFeedbacks {
   channelStatus: TwitchFeedback<ChannelStatusCallback>
   chatStatus: TwitchFeedback<ChatStatusCallback>
+  raidCandidateAvailable: TwitchFeedback<RaidCandidateAvailableCallback>
+  raidBrowserHasCandidates: TwitchFeedback<RaidBrowserHasCandidatesCallback>
+  raidCandidateSource: TwitchFeedback<RaidCandidateSourceCallback>
 
   // Index signature
   [key: string]: TwitchFeedback<any>
@@ -32,6 +35,23 @@ interface ChatStatusCallback {
     channel: string
     mode: ChatModes
     value: string
+  }>
+}
+
+interface RaidCandidateAvailableCallback {
+  type: 'raidCandidateAvailable'
+  options: Record<string, never>
+}
+
+interface RaidBrowserHasCandidatesCallback {
+  type: 'raidBrowserHasCandidates'
+  options: Record<string, never>
+}
+
+interface RaidCandidateSourceCallback {
+  type: 'raidCandidateSource'
+  options: Readonly<{
+    sourceName: string
   }>
 }
 
@@ -140,6 +160,52 @@ export function getFeedbacks(instance: TwitchInstance): TwitchFeedbacks {
           return true
         }
         return false
+      },
+    },
+
+    raidCandidateAvailable: {
+      type: 'boolean',
+      name: 'Raid Candidate Available',
+      description: 'Indicates whether the raid browser currently has a selected candidate',
+      options: [],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (): boolean => instance.raidCandidates[instance.raidCandidateIndex] !== undefined,
+    },
+
+    raidBrowserHasCandidates: {
+      type: 'boolean',
+      name: 'Raid Browser Has Candidates',
+      description: 'Indicates whether the raid browser candidate list is non-empty',
+      options: [],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (): boolean => instance.raidCandidates.length > 0,
+    },
+
+    raidCandidateSource: {
+      type: 'boolean',
+      name: 'Selected Raid Candidate Source',
+      description: 'Indicates whether the selected raid candidate belongs to a specified team or source',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Source Name',
+          id: 'sourceName',
+          default: '',
+        },
+      ],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (feedback): boolean => {
+        const sourceName = instance.raidCandidates[instance.raidCandidateIndex]?.sourceName
+        return sourceName !== undefined && sourceName.toLowerCase() === feedback.options.sourceName.trim().toLowerCase()
       },
     },
   }

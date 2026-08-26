@@ -43,6 +43,20 @@ export class Variables {
     variables.add({ name: `Ratelimit Remaining`, variableId: `ratelimit_remaining` })
     variables.add({ name: `Requests per Min`, variableId: `requests_per_min` })
 
+    variables.add({ name: 'Raid Candidate Count', variableId: 'raid_candidate_count' })
+    variables.add({ name: 'Raid Candidate Index', variableId: 'raid_candidate_index' })
+    variables.add({ name: 'Raid Candidate Login', variableId: 'raid_candidate_login' })
+    variables.add({ name: 'Raid Candidate Display Name', variableId: 'raid_candidate_display_name' })
+    variables.add({ name: 'Raid Candidate User ID', variableId: 'raid_candidate_user_id' })
+    variables.add({ name: 'Raid Candidate Viewers', variableId: 'raid_candidate_viewers' })
+    variables.add({ name: 'Raid Candidate Viewers (formatted)', variableId: 'raid_candidate_viewers_formatted' })
+    variables.add({ name: 'Raid Candidate Category', variableId: 'raid_candidate_category' })
+    variables.add({ name: 'Raid Candidate Title', variableId: 'raid_candidate_title' })
+    variables.add({ name: 'Raid Candidate Source Type', variableId: 'raid_candidate_source_type' })
+    variables.add({ name: 'Raid Candidate Source Name', variableId: 'raid_candidate_source_name' })
+    variables.add({ name: 'Raid Candidate Available', variableId: 'raid_candidate_available' })
+    variables.add({ name: 'Raid Candidates JSON', variableId: 'raid_candidates_json' })
+
     variables.add({ name: `Selected Channel`, variableId: `selected` })
     variables.add({ name: `Selected Channel Live`, variableId: `selected_live` })
     variables.add({ name: `Selected Channel Uptime`, variableId: `selected_uptime` })
@@ -117,6 +131,21 @@ export class Variables {
     newVariables.ratelimit_limit = this.instance.API.ratelimitLimit
     newVariables.ratelimit_remaining = this.instance.API.ratelimitRemaining
     newVariables.requests_per_min = this.instance.API.requestsPerMin
+
+    const raidCandidate = this.instance.raidCandidates[this.instance.raidCandidateIndex]
+    newVariables.raid_candidate_count = this.instance.raidCandidates.length
+    newVariables.raid_candidate_index = raidCandidate ? this.instance.raidCandidateIndex + 1 : 0
+    newVariables.raid_candidate_login = raidCandidate?.login ?? ''
+    newVariables.raid_candidate_display_name = raidCandidate?.displayName ?? ''
+    newVariables.raid_candidate_user_id = raidCandidate?.userId ?? ''
+    newVariables.raid_candidate_viewers = raidCandidate?.viewers ?? 0
+    newVariables.raid_candidate_viewers_formatted = formatNumber(raidCandidate?.viewers ?? 0)
+    newVariables.raid_candidate_category = raidCandidate?.category ?? ''
+    newVariables.raid_candidate_title = raidCandidate?.title ?? ''
+    newVariables.raid_candidate_source_type = raidCandidate?.sourceType ?? ''
+    newVariables.raid_candidate_source_name = raidCandidate?.sourceName ?? ''
+    newVariables.raid_candidate_available = Boolean(raidCandidate).toString()
+    newVariables.raid_candidates_json = JSON.stringify(this.instance.raidCandidates)
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
     newVariables[`selected`] = selectedChannel ? selectedChannel.displayName : ''

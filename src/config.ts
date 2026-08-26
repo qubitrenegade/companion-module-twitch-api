@@ -20,7 +20,7 @@ export interface Config {
   broadcasterSubscriptions: boolean
   broadcasterVIPs: boolean
   editorStreamMarkers: boolean
-	editorCreateClips: boolean
+  editorCreateClips: boolean
   moderatorAnnouncements: boolean
   moderatorAutomod: boolean
   moderatorChatModeration: boolean
@@ -33,7 +33,29 @@ export interface Config {
   moderatorWarnings: boolean
   userChat: boolean
   userClips: boolean
+  raidBrowserEnabled: boolean
+  userReadFollows: boolean
+  raidBrowserTeams: string
+  raidBrowserIncludeFollowed: boolean
+  raidBrowserRefreshSeconds: number
 }
+
+export const RAID_BROWSER_CONFIG_DEFAULTS = {
+  raidBrowserEnabled: false,
+  userReadFollows: false,
+  raidBrowserTeams: '',
+  raidBrowserIncludeFollowed: true,
+  raidBrowserRefreshSeconds: 60,
+} as const
+
+export const normalizeConfig = (config: Config): Config => ({
+  ...config,
+  raidBrowserEnabled: config.raidBrowserEnabled ?? RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserEnabled,
+  userReadFollows: config.userReadFollows ?? RAID_BROWSER_CONFIG_DEFAULTS.userReadFollows,
+  raidBrowserTeams: config.raidBrowserTeams ?? RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserTeams,
+  raidBrowserIncludeFollowed: config.raidBrowserIncludeFollowed ?? RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserIncludeFollowed,
+  raidBrowserRefreshSeconds: config.raidBrowserRefreshSeconds ?? RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserRefreshSeconds,
+})
 
 export const getConfigFields = (instance: TwitchInstance): SomeCompanionConfigField[] => {
   return [
@@ -43,6 +65,44 @@ export const getConfigFields = (instance: TwitchInstance): SomeCompanionConfigFi
       id: 'channels',
       width: 12,
       default: '',
+    },
+
+    {
+      type: 'static-text',
+      id: 'raid-browser-info',
+      width: 12,
+      label: 'Raid Target Browser',
+      value: `Browse live members of configured Twitch teams followed by live channels that the authenticated user follows. Team names may be separated by commas or new lines. Changing either permission option requires saving and authenticating again.<br /><br />Browsing does not require the Raids permission. Starting a raid requires the Raids permission.`,
+    },
+    {
+      type: 'checkbox',
+      label: 'Enable Raid Target Browser',
+      id: 'raidBrowserEnabled',
+      width: 6,
+      default: RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserEnabled,
+    },
+    {
+      type: 'checkbox',
+      label: 'Include Followed Live Streams',
+      id: 'raidBrowserIncludeFollowed',
+      width: 6,
+      default: RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserIncludeFollowed,
+    },
+    {
+      type: 'textinput',
+      label: 'Twitch Teams in Priority Order',
+      id: 'raidBrowserTeams',
+      width: 12,
+      default: RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserTeams,
+    },
+    {
+      type: 'number',
+      label: 'Raid Candidate Refresh Interval (seconds, 0 disables automatic refresh)',
+      id: 'raidBrowserRefreshSeconds',
+      width: 6,
+      default: RAID_BROWSER_CONFIG_DEFAULTS.raidBrowserRefreshSeconds,
+      min: 0,
+      max: 86400,
     },
 
     {
@@ -201,7 +261,7 @@ export const getConfigFields = (instance: TwitchInstance): SomeCompanionConfigFi
       default: true,
       // channel:manage:clips
     },
-		
+
     {
       type: 'static-text',
       id: 'mod-info',
@@ -313,6 +373,14 @@ export const getConfigFields = (instance: TwitchInstance): SomeCompanionConfigFi
       width: 4,
       default: true,
       // clips:edit
+    },
+    {
+      type: 'checkbox',
+      label: 'Read Followed Live Streams',
+      id: 'userReadFollows',
+      width: 4,
+      default: RAID_BROWSER_CONFIG_DEFAULTS.userReadFollows,
+      // user:read:follows
     },
   ]
 }

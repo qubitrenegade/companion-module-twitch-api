@@ -12,7 +12,7 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
   if (!instance.auth.userID) return
 
   if (!instance.auth.scopes.includes('channel:manage:raids')) {
-    instance.log('info', 'Unable to start a raid, missing the Raids permission')
+    instance.log('warn', 'Unable to start a raid. Enable the Raids permission and authenticate again.')
     return
   }
 

@@ -50,7 +50,7 @@ export type Scopes =
   | 'channel:manage:vips'
   | 'channel:moderate'
   | 'clips:edit'
-	| 'editor:manage:clips'
+  | 'editor:manage:clips'
   | 'moderation:read'
   | 'moderator:manage:announcements'
   | 'moderator:manage:automod'
@@ -196,7 +196,7 @@ export class Auth {
    * Generate Scopes
    * @returns {Scopes[]} Array of scopes
    */
-  private generateScopes = (): Scopes[] => {
+  public generateScopes = (): Scopes[] => {
     const scopes: Scopes[] = []
 
     if (this.instance.config.broadcasterAds) scopes.push('channel:read:ads', 'channel:manage:ads', 'channel:edit:commercial')
@@ -214,7 +214,7 @@ export class Auth {
     if (this.instance.config.broadcasterSubscriptions) scopes.push('channel:read:subscriptions')
     if (this.instance.config.broadcasterVIPs) scopes.push('channel:manage:vips')
     if (this.instance.config.editorStreamMarkers) scopes.push('channel:manage:broadcast')
-		if (this.instance.config.editorCreateClips) scopes.push('editor:manage:clips')
+    if (this.instance.config.editorCreateClips) scopes.push('editor:manage:clips')
 
     if (
       this.instance.config.moderatorAnnouncements ||
@@ -251,6 +251,7 @@ export class Auth {
     if (this.instance.config.moderatorWarnings) scopes.push('moderator:read:warnings', 'moderator:manage:warnings')
     if (this.instance.config.userChat) scopes.push('user:read:chat', 'chat:read', 'user:write:chat', 'chat:edit', 'user:manage:chat_color')
     if (this.instance.config.userClips) scopes.push('clips:edit')
+    if (this.instance.config.userReadFollows) scopes.push('user:read:follows')
 
     return scopes
   }
@@ -310,6 +311,7 @@ export class Auth {
     this.instance.updateInstance()
     this.instance.API.initialPoll()
     this.instance.API.pollData()
+    this.instance.raidBrowser.authenticationReady()
   }
 
   /**

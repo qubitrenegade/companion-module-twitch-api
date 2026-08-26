@@ -7,12 +7,18 @@ import type { ClipVODOptions } from './api/createClipVOD'
 export interface TwitchActions {
   // API
   adStart: TwitchAction<AdStartCallback>
-	createClip: TwitchAction<CreateClipCallback>
-	createClipVOD: TwitchAction<CreateClipVODCallback>
+  createClip: TwitchAction<CreateClipCallback>
+  createClipVOD: TwitchAction<CreateClipVODCallback>
   createPoll: TwitchAction<CreatePollCallback>
   endPoll: TwitchAction<EndPollCallback>
   endPrediction: TwitchAction<EndPrediction>
   marker: TwitchAction<MarkerCallback>
+  raidBrowserRefresh: TwitchAction<RaidBrowserRefreshCallback>
+  raidBrowserNext: TwitchAction<RaidBrowserStepCallback>
+  raidBrowserPrevious: TwitchAction<RaidBrowserStepCallback>
+  raidBrowserSelect: TwitchAction<RaidBrowserSelectCallback>
+  raidBrowserStartSelected: TwitchAction<RaidBrowserStartSelectedCallback>
+  startRaidByLogin: TwitchAction<StartRaidByLoginCallback>
   request: TwitchAction<RequestCallback>
 
   // Chat
@@ -40,23 +46,23 @@ interface AdStartCallback {
 }
 
 interface CreateClipCallback {
-	actionId: 'createClip'
-	options: {
-		channel: string
-		title?: string
-		duration?: string
-	}
+  actionId: 'createClip'
+  options: {
+    channel: string
+    title?: string
+    duration?: string
+  }
 }
 
 interface CreateClipVODCallback {
-	actionId: 'createClipVOD'
-	options: {
-		channel: string
-		vodID: string
-		offset: string
-		duration: string
-		title: string
-	}
+  actionId: 'createClipVOD'
+  options: {
+    channel: string
+    vodID: string
+    offset: string
+    duration: string
+    title: string
+  }
 }
 
 interface CreatePollCallback {
@@ -93,6 +99,37 @@ interface MarkerCallback {
   actionId: 'marker'
   options: {
     channel: string
+  }
+}
+
+interface RaidBrowserRefreshCallback {
+  actionId: 'raidBrowserRefresh'
+  options: Record<string, never>
+}
+
+interface RaidBrowserStepCallback {
+  actionId: 'raidBrowserNext' | 'raidBrowserPrevious'
+  options: {
+    step: string
+  }
+}
+
+interface RaidBrowserSelectCallback {
+  actionId: 'raidBrowserSelect'
+  options: {
+    index: string
+  }
+}
+
+interface RaidBrowserStartSelectedCallback {
+  actionId: 'raidBrowserStartSelected'
+  options: Record<string, never>
+}
+
+interface StartRaidByLoginCallback {
+  actionId: 'startRaidByLogin'
+  options: {
+    login: string
   }
 }
 
@@ -172,12 +209,17 @@ interface StreamOpenCallback {
 
 export type ActionCallbacks =
   | AdStartCallback
-	| CreateClipCallback
-	| CreateClipVODCallback
+  | CreateClipCallback
+  | CreateClipVODCallback
   | CreatePollCallback
   | EndPollCallback
   | EndPrediction
   | MarkerCallback
+  | RaidBrowserRefreshCallback
+  | RaidBrowserStepCallback
+  | RaidBrowserSelectCallback
+  | RaidBrowserStartSelectedCallback
+  | StartRaidByLoginCallback
   | RequestCallback
   | ClearChatCallback
   | ChatModeEmoteCallback
@@ -246,7 +288,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           type: 'textinput',
           label: 'Title',
           id: 'title',
-					tooltip: 'The title of the clip',
+          tooltip: 'The title of the clip',
           default: '',
           useVariables: true,
         },
@@ -254,7 +296,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           type: 'textinput',
           label: 'Duration',
           id: 'duration',
-					tooltip: 'The length of the clip in seconds. Possible values range from 5 to 60 inclusively with a precision of 0.1. The default is 30',
+          tooltip: 'The length of the clip in seconds. Possible values range from 5 to 60 inclusively with a precision of 0.1. The default is 30',
           default: '',
           useVariables: true,
         },
@@ -262,15 +304,15 @@ export function getActions(instance: TwitchInstance): TwitchActions {
       callback: async (action, context) => {
         const channel = action.options.channel === 'selected' ? instance.selectedChannel : action.options.channel
 
-				const options: ClipOptions = {
-					channel
-				}
+        const options: ClipOptions = {
+          channel,
+        }
 
-				if (action.options.title) options.title = await context.parseVariablesInString(action.options.title)
-				if (action.options.duration) {
-					const duration = parseFloat(await context.parseVariablesInString(action.options.duration))
-					if (!isNaN(duration)) options.duration = duration
-				}
+        if (action.options.title) options.title = await context.parseVariablesInString(action.options.title)
+        if (action.options.duration) {
+          const duration = parseFloat(await context.parseVariablesInString(action.options.duration))
+          if (!isNaN(duration)) options.duration = duration
+        }
 
         if (channel !== '') return instance.API.createClip(instance, options)
       },
@@ -298,7 +340,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           type: 'textinput',
           label: 'Title',
           id: 'title',
-					tooltip: 'The title of the clip',
+          tooltip: 'The title of the clip',
           default: '',
           useVariables: true,
         },
@@ -306,7 +348,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           type: 'textinput',
           label: 'Offset (where the clip ends)',
           id: 'offset',
-					tooltip: 'Point in time in the VOD (in seconds) when the Clip is to end',
+          tooltip: 'Point in time in the VOD (in seconds) when the Clip is to end',
           default: '',
           useVariables: true,
         },
@@ -314,7 +356,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           type: 'textinput',
           label: 'Duration',
           id: 'duration',
-					tooltip: 'The length of the clip in seconds. Possible values range from 5 to 60 inclusively with a precision of 0.1. The default is 30',
+          tooltip: 'The length of the clip in seconds. Possible values range from 5 to 60 inclusively with a precision of 0.1. The default is 30',
           default: '',
           useVariables: true,
         },
@@ -322,18 +364,18 @@ export function getActions(instance: TwitchInstance): TwitchActions {
       callback: async (action, context) => {
         const channel = action.options.channel === 'selected' ? instance.selectedChannel : action.options.channel
 
-				const options: ClipVODOptions = {
-					channel,
-					vodID: await context.parseVariablesInString(action.options.vodID),
-					title: await context.parseVariablesInString(action.options.title),
-					offset: parseFloat(await context.parseVariablesInString(action.options.offset)),
-					duration: parseFloat(await context.parseVariablesInString(action.options.duration)),
-				}
+        const options: ClipVODOptions = {
+          channel,
+          vodID: await context.parseVariablesInString(action.options.vodID),
+          title: await context.parseVariablesInString(action.options.title),
+          offset: parseFloat(await context.parseVariablesInString(action.options.offset)),
+          duration: parseFloat(await context.parseVariablesInString(action.options.duration)),
+        }
 
-				if (isNaN(options.offset) || isNaN(options.duration) || options.offset < options.duration) {
-					instance.log('warn', `Invalid Offset or Duration for creating clips`)
-					return
-				}
+        if (isNaN(options.offset) || isNaN(options.duration) || options.offset < options.duration) {
+          instance.log('warn', `Invalid Offset or Duration for creating clips`)
+          return
+        }
 
         if (channel !== '') return instance.API.createClipVOD(instance, options)
       },
@@ -514,6 +556,103 @@ export function getActions(instance: TwitchInstance): TwitchActions {
       callback: (action) => {
         const selection = action.options.channel === 'selected' ? instance.selectedChannel : action.options.channel
         if (selection !== '') instance.API.createStreamMarker(instance, selection)
+      },
+    },
+
+    raidBrowserRefresh: {
+      name: 'Raid Browser: Refresh Candidates',
+      options: [],
+      callback: async () => {
+        await instance.raidBrowser.refresh()
+      },
+    },
+
+    raidBrowserNext: {
+      name: 'Raid Browser: Select Next Candidate',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Step Count',
+          id: 'step',
+          default: '1',
+          useVariables: true,
+        },
+      ],
+      callback: async (action, context) => {
+        const parsedStep = Number.parseInt(await context.parseVariablesInString(action.options.step), 10)
+        instance.raidBrowser.select(Number.isFinite(parsedStep) ? Math.abs(parsedStep) : 1)
+      },
+    },
+
+    raidBrowserPrevious: {
+      name: 'Raid Browser: Select Previous Candidate',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Step Count',
+          id: 'step',
+          default: '1',
+          useVariables: true,
+        },
+      ],
+      callback: async (action, context) => {
+        const parsedStep = Number.parseInt(await context.parseVariablesInString(action.options.step), 10)
+        instance.raidBrowser.select(-(Number.isFinite(parsedStep) ? Math.abs(parsedStep) : 1))
+      },
+    },
+
+    raidBrowserSelect: {
+      name: 'Raid Browser: Select Candidate',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Candidate Index (1-based)',
+          id: 'index',
+          default: '1',
+          useVariables: true,
+        },
+      ],
+      callback: async (action, context) => {
+        const index = Number.parseInt(await context.parseVariablesInString(action.options.index), 10)
+        if (!Number.isFinite(index)) {
+          instance.log('warn', 'Raid browser candidate index must resolve to a number')
+          return
+        }
+        instance.raidBrowser.selectIndex(index)
+      },
+    },
+
+    raidBrowserStartSelected: {
+      name: 'Raid Browser: Start Raid to Selected Candidate',
+      options: [],
+      callback: async () => {
+        const candidate = instance.raidCandidates[instance.raidCandidateIndex]
+        if (!candidate) {
+          instance.log('warn', 'Unable to start a raid because no raid candidate is selected')
+          return
+        }
+        await instance.API.startARaid(instance, candidate.login)
+      },
+    },
+
+    startRaidByLogin: {
+      name: 'Start Raid by Login',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Target Login',
+          id: 'login',
+          default: '',
+          useVariables: true,
+        },
+      ],
+      callback: async (action, context) => {
+        const login = (await context.parseVariablesInString(action.options.login)).trim().replace(/^@/, '')
+        if (!login) {
+          instance.log('warn', 'Unable to start a raid because the target login is empty')
+          return
+        }
+        await instance.API.startARaid(instance, login)
       },
     },
 

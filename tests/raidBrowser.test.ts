@@ -1,0 +1,253 @@
+import { getActions } from '../src/actions'
+import { Auth } from '../src/auth'
+import type { Config } from '../src/config'
+import { getUpgrades } from '../src/upgrade'
+import {
+  mergeRaidCandidateGroups,
+  normalizeRaidCandidates,
+  parseRaidBrowserTeams,
+  preserveRaidCandidateSelection,
+  RaidBrowser,
+  type RaidCandidate,
+  selectWrappedRaidCandidateIndex,
+  type TwitchStream,
+} from '../src/raidBrowser'
+import type TwitchInstance from '../src/index'
+
+const stream = (id: string, viewers: number, name = `User ${id}`): TwitchStream => ({
+  user_id: id,
+  user_login: `user${id}`,
+  user_name: name,
+  game_name: `Game ${id}`,
+  title: `Title ${id}`,
+  viewer_count: viewers,
+})
+
+const candidate = (id: string, viewers = 1, sourceName = 'Team A'): RaidCandidate => ({
+  userId: id,
+  login: `user${id}`,
+  displayName: `User ${id}`,
+  viewers,
+  category: `Game ${id}`,
+  title: `Title ${id}`,
+  sourceType: sourceName === 'Followed' ? 'followed' : 'team',
+  sourceName,
+})
+
+const response = (body: unknown, status = 200, headers: Record<string, string> = {}): Response =>
+  ({
+    status,
+    ok: status >= 200 && status < 300,
+    headers: new Headers(headers),
+    json: async () => body,
+  }) as Response
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
+const makeInstance = (config: Partial<Config> = {}, scopes: string[] = ['user:read:follows']) => {
+  const instance = {
+    config: {
+      raidBrowserEnabled: true,
+      raidBrowserTeams: '',
+      raidBrowserIncludeFollowed: true,
+      raidBrowserRefreshSeconds: 60,
+      ...config,
+    },
+    auth: {
+      valid: true,
+      userID: 'self',
+      scopes,
+    },
+    API: {
+      defaultOptions: jest.fn(() => ({ method: 'GET', headers: {} })),
+      updateRatelimits: jest.fn(),
+    },
+    raidCandidates: [] as RaidCandidate[],
+    raidCandidateIndex: 0,
+    variables: { updateVariables: jest.fn() },
+    checkFeedbacks: jest.fn(),
+    log: jest.fn(),
+  } as unknown as TwitchInstance
+
+  return { instance, browser: new RaidBrowser(instance) }
+}
+
+describe('raid candidate transforms', () => {
+  test('normalizes team candidates', () => {
+    expect(normalizeRaidCandidates([stream('1', 45)], 'team', 'Team A')).toEqual([candidate('1', 45)])
+  })
+
+  test('normalizes followed-stream candidates', () => {
+    expect(normalizeRaidCandidates([stream('2', 12)], 'followed', 'Followed')).toEqual([candidate('2', 12, 'Followed')])
+  })
+
+  test('parses comma and newline separated teams without duplicate names', () => {
+    expect(parseRaidBrowserTeams(' Alpha, beta\nALPHA, Gamma ')).toEqual(['Alpha', 'beta', 'Gamma'])
+  })
+
+  test('sorts within sources, preserves source priority, deduplicates, and excludes self', () => {
+    const merged = mergeRaidCandidateGroups(
+      [[candidate('1', 5), candidate('2', 50), candidate('self', 100)], [candidate('2', 500, 'Team B'), candidate('3', 20, 'Team B')], [candidate('4', 10, 'Followed')]],
+      'self',
+    )
+
+    expect(merged.map(({ userId, sourceName, viewers }) => ({ userId, sourceName, viewers }))).toEqual([
+      { userId: '2', sourceName: 'Team A', viewers: 50 },
+      { userId: '1', sourceName: 'Team A', viewers: 5 },
+      { userId: '3', sourceName: 'Team B', viewers: 20 },
+      { userId: '4', sourceName: 'Followed', viewers: 10 },
+    ])
+  })
+
+  test('wraps next and previous selection and handles an empty list', () => {
+    expect(selectWrappedRaidCandidateIndex(2, 3, 1)).toBe(0)
+    expect(selectWrappedRaidCandidateIndex(0, 3, -1)).toBe(2)
+    expect(selectWrappedRaidCandidateIndex(4, 0, 1)).toBe(0)
+  })
+
+  test('preserves a selected user after refresh and clamps when it disappears', () => {
+    const before = [candidate('1'), candidate('2'), candidate('3')]
+    expect(preserveRaidCandidateSelection(before, 1, [candidate('2'), candidate('1')])).toBe(0)
+    expect(preserveRaidCandidateSelection(before, 2, [candidate('4'), candidate('5')])).toBe(1)
+    expect(preserveRaidCandidateSelection(before, 1, [])).toBe(0)
+  })
+})
+
+describe('RaidBrowser Twitch loading', () => {
+  const fetchMock = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    global.fetch = fetchMock
+  })
+
+  test('loads team candidates even when the follows scope is missing', async () => {
+    const { instance, browser } = makeInstance({ raidBrowserTeams: 'alpha' }, [])
+    fetchMock
+      .mockResolvedValueOnce(response({ data: [{ team_name: 'alpha', team_display_name: 'Alpha', users: [{ user_id: '1' }] }] }))
+      .mockResolvedValueOnce(response({ data: [stream('1', 15)] }))
+
+    await browser.refresh()
+
+    expect(instance.raidCandidates).toEqual([candidate('1', 15, 'Alpha')])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.log).toHaveBeenCalledWith('warn', expect.stringContaining('user:read:follows'))
+  })
+
+  test('retrieves every page of followed live streams', async () => {
+    const { instance, browser } = makeInstance()
+    fetchMock
+      .mockResolvedValueOnce(response({ data: [stream('1', 10)], pagination: { cursor: 'next page' } }))
+      .mockResolvedValueOnce(response({ data: [stream('2', 20)], pagination: {} }))
+
+    await browser.refresh()
+
+    expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['2', '1'])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('after=next+page')
+  })
+
+  test('keeps successful sources when another team fails', async () => {
+    const { instance, browser } = makeInstance({ raidBrowserTeams: 'broken,good', raidBrowserIncludeFollowed: false })
+    fetchMock
+      .mockResolvedValueOnce(response({ data: [] }))
+      .mockResolvedValueOnce(response({ data: [{ team_name: 'good', team_display_name: 'Good', users: [{ user_id: '2' }] }] }))
+      .mockResolvedValueOnce(response({ data: [stream('2', 20)] }))
+
+    await browser.refresh()
+
+    expect(instance.raidCandidates).toEqual([candidate('2', 20, 'Good')])
+    expect(instance.log).toHaveBeenCalledWith('warn', expect.stringContaining('team broken'))
+  })
+
+  test('prevents an older overlapping refresh from overwriting newer state', async () => {
+    const { instance, browser } = makeInstance()
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    fetchMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+
+    const olderRefresh = browser.refresh()
+    const newerRefresh = browser.refresh()
+    second.resolve(response({ data: [stream('new', 20)], pagination: {} }))
+    await newerRefresh
+    first.resolve(response({ data: [stream('old', 10)], pagination: {} }))
+    await olderRefresh
+
+    expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['new'])
+  })
+
+  test('waits for the Twitch reset header before retrying one rate-limited request', async () => {
+    const { instance, browser } = makeInstance()
+    fetchMock
+      .mockResolvedValueOnce(response({ message: 'Too Many Requests' }, 429, { 'Ratelimit-Reset': Math.floor(Date.now() / 1000).toString() }))
+      .mockResolvedValueOnce(response({ data: [stream('1', 10)], pagination: {} }))
+
+    await browser.refresh()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['1'])
+  })
+
+  test('does not poll or request browser APIs while disabled', async () => {
+    jest.useFakeTimers()
+    const { browser } = makeInstance({ raidBrowserEnabled: false })
+
+    browser.authenticationReady()
+    await browser.refresh()
+    jest.advanceTimersByTime(120_000)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    browser.destroy()
+    jest.useRealTimers()
+  })
+})
+
+describe('raid browser integration boundaries', () => {
+  test('adds the follows scope only when its permission is enabled', () => {
+    const disabledInstance = { config: { userReadFollows: false } } as unknown as TwitchInstance
+    const enabledInstance = { config: { userReadFollows: true } } as unknown as TwitchInstance
+
+    expect(new Auth(disabledInstance).generateScopes()).not.toContain('user:read:follows')
+    expect(new Auth(enabledInstance).generateScopes()).toContain('user:read:follows')
+  })
+
+  test('Start Raid by Login expands variables before calling the existing endpoint', async () => {
+    const startARaid = jest.fn()
+    const parseVariablesInString = jest.fn(async () => '  @target_login  ')
+    const instance = {
+      channels: [],
+      selectedChannel: '',
+      raidCandidates: [],
+      raidCandidateIndex: 0,
+      API: { startARaid },
+      raidBrowser: {},
+      chat: {},
+      log: jest.fn(),
+    } as unknown as TwitchInstance
+    const actions = getActions(instance)
+
+    await actions.startRaidByLogin.callback({ options: { login: '$(custom:target)' } } as never, { parseVariablesInString } as never)
+
+    expect(parseVariablesInString).toHaveBeenCalledWith('$(custom:target)')
+    expect(startARaid).toHaveBeenCalledWith(instance, 'target_login')
+  })
+
+  test('upgrade script adds safe defaults without enabling the browser or follows scope', () => {
+    const oldConfig = { channels: 'example' } as Config
+    const result = getUpgrades()[0]({ currentConfig: oldConfig }, { config: oldConfig, actions: [], feedbacks: [] })
+
+    expect(result.updatedConfig).toMatchObject({
+      raidBrowserEnabled: false,
+      userReadFollows: false,
+      raidBrowserTeams: '',
+      raidBrowserIncludeFollowed: true,
+      raidBrowserRefreshSeconds: 60,
+    })
+  })
+})

@@ -1,0 +1,338 @@
+import type TwitchInstance from './index'
+
+export interface RaidCandidate {
+  userId: string
+  login: string
+  displayName: string
+  viewers: number
+  category: string
+  title: string
+  sourceType: 'team' | 'followed'
+  sourceName: string
+}
+
+export interface TwitchStream {
+  user_id: string
+  user_login: string
+  user_name: string
+  game_name: string
+  title: string
+  viewer_count: number
+}
+
+interface TwitchTeamUser {
+  user_id: string
+  user_login: string
+  user_name: string
+}
+
+interface TwitchTeam {
+  team_name: string
+  team_display_name: string
+  users: TwitchTeamUser[]
+}
+
+interface HelixResponse<T> {
+  data: T[]
+  pagination?: {
+    cursor?: string
+  }
+}
+
+export const parseRaidBrowserTeams = (value: string): string[] => {
+  const seen = new Set<string>()
+
+  return value
+    .split(/[\n,]/)
+    .map((name) => name.trim())
+    .filter((name) => {
+      const key = name.toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
+export const normalizeRaidCandidates = (streams: TwitchStream[], sourceType: RaidCandidate['sourceType'], sourceName: string): RaidCandidate[] => {
+  return streams
+    .filter(
+      (stream) =>
+        typeof stream.user_id === 'string' &&
+        typeof stream.user_login === 'string' &&
+        typeof stream.user_name === 'string' &&
+        typeof stream.game_name === 'string' &&
+        typeof stream.title === 'string' &&
+        typeof stream.viewer_count === 'number',
+    )
+    .map((stream) => ({
+      userId: stream.user_id,
+      login: stream.user_login,
+      displayName: stream.user_name,
+      viewers: stream.viewer_count,
+      category: stream.game_name,
+      title: stream.title,
+      sourceType,
+      sourceName,
+    }))
+}
+
+/**
+ * Source arrays arrive in configured priority order. Sorting each source before
+ * deduplication keeps the source boundary stable while allowing the per-source
+ * ranking policy to change independently later.
+ */
+export const mergeRaidCandidateGroups = (groups: RaidCandidate[][], authenticatedUserId: string): RaidCandidate[] => {
+  const seen = new Set<string>()
+  const candidates: RaidCandidate[] = []
+
+  for (const group of groups) {
+    const sortedGroup = [...group].sort((a, b) => b.viewers - a.viewers || a.displayName.localeCompare(b.displayName))
+
+    for (const candidate of sortedGroup) {
+      if (candidate.userId === authenticatedUserId || seen.has(candidate.userId)) continue
+      seen.add(candidate.userId)
+      candidates.push(candidate)
+    }
+  }
+
+  return candidates
+}
+
+export const selectWrappedRaidCandidateIndex = (currentIndex: number, candidateCount: number, delta: number): number => {
+  if (candidateCount === 0) return 0
+  return (((currentIndex + delta) % candidateCount) + candidateCount) % candidateCount
+}
+
+export const preserveRaidCandidateSelection = (previousCandidates: RaidCandidate[], previousIndex: number, candidates: RaidCandidate[]): number => {
+  if (candidates.length === 0) return 0
+
+  const selectedUserId = previousCandidates[previousIndex]?.userId
+  const preservedIndex = selectedUserId ? candidates.findIndex((candidate) => candidate.userId === selectedUserId) : -1
+  if (preservedIndex >= 0) return preservedIndex
+
+  return Math.min(Math.max(previousIndex, 0), candidates.length - 1)
+}
+
+const waitUntil = async (timestampMs: number, signal: AbortSignal): Promise<void> => {
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+  const delay = Math.max(timestampMs - Date.now(), 0)
+  if (delay === 0) return
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, delay)
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        reject(new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true },
+    )
+  })
+}
+
+export class RaidBrowser {
+  private readonly instance: TwitchInstance
+  private refreshController: AbortController | null = null
+  private refreshGeneration = 0
+  private refreshTimer: ReturnType<typeof setInterval> | null = null
+  private followsScopeWarningKey = ''
+
+  constructor(instance: TwitchInstance) {
+    this.instance = instance
+  }
+
+  public destroy(): void {
+    this.stop()
+  }
+
+  public authenticationReady(): void {
+    this.reconfigure(true)
+  }
+
+  public reconfigure(refreshImmediately = false): void {
+    this.stop()
+    this.followsScopeWarningKey = ''
+
+    if (!this.instance.config.raidBrowserEnabled) {
+      this.replaceCandidates([])
+      return
+    }
+
+    if (!this.instance.auth.valid) return
+
+    const refreshSeconds = Math.max(0, Number(this.instance.config.raidBrowserRefreshSeconds) || 0)
+    if (refreshSeconds > 0) {
+      this.refreshTimer = setInterval(() => void this.refresh(), refreshSeconds * 1000)
+    }
+
+    if (refreshImmediately) void this.refresh()
+  }
+
+  public async refresh(): Promise<void> {
+    if (!this.instance.config.raidBrowserEnabled) {
+      this.instance.log('debug', 'Raid browser refresh skipped because the browser is disabled')
+      return
+    }
+    if (!this.instance.auth.valid || !this.instance.auth.userID) {
+      this.instance.log('warn', 'Raid browser refresh requires a valid Twitch authentication')
+      return
+    }
+
+    /*
+     * Only the newest refresh owns the state. Aborting the prior request bounds
+     * concurrency, while the generation check also protects against fetch mocks
+     * or network stacks that complete after observing an abort.
+     */
+    const generation = ++this.refreshGeneration
+    this.refreshController?.abort()
+    const controller = new AbortController()
+    this.refreshController = controller
+
+    try {
+      const groups = await this.loadCandidateGroups(controller.signal)
+      if (generation !== this.refreshGeneration || controller.signal.aborted) return
+
+      this.replaceCandidates(mergeRaidCandidateGroups(groups, this.instance.auth.userID))
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        this.instance.log('warn', `Raid browser refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    } finally {
+      if (generation === this.refreshGeneration) this.refreshController = null
+    }
+  }
+
+  public select(delta: number): void {
+    this.instance.raidCandidateIndex = selectWrappedRaidCandidateIndex(this.instance.raidCandidateIndex, this.instance.raidCandidates.length, delta)
+    this.publishState()
+  }
+
+  public selectIndex(displayIndex: number): void {
+    if (this.instance.raidCandidates.length === 0) {
+      this.instance.raidCandidateIndex = 0
+    } else {
+      this.instance.raidCandidateIndex = Math.min(Math.max(Math.trunc(displayIndex) - 1, 0), this.instance.raidCandidates.length - 1)
+    }
+    this.publishState()
+  }
+
+  private stop(): void {
+    if (this.refreshTimer) clearInterval(this.refreshTimer)
+    this.refreshTimer = null
+    this.refreshController?.abort()
+    this.refreshController = null
+    this.refreshGeneration++
+  }
+
+  private replaceCandidates(candidates: RaidCandidate[]): void {
+    const previousCandidates = this.instance.raidCandidates
+    const previousIndex = this.instance.raidCandidateIndex
+    this.instance.raidCandidates = candidates
+    this.instance.raidCandidateIndex = preserveRaidCandidateSelection(previousCandidates, previousIndex, candidates)
+    this.publishState()
+  }
+
+  private publishState(): void {
+    this.instance.variables.updateVariables()
+    this.instance.checkFeedbacks('raidCandidateAvailable', 'raidBrowserHasCandidates', 'raidCandidateSource')
+  }
+
+  private async loadCandidateGroups(signal: AbortSignal): Promise<RaidCandidate[][]> {
+    const groupPromises = parseRaidBrowserTeams(this.instance.config.raidBrowserTeams).map(async (teamName) => {
+      try {
+        return await this.loadTeam(teamName, signal)
+      } catch (error) {
+        if (signal.aborted) throw error
+        this.instance.log('warn', `Unable to load raid candidates from team ${teamName}: ${error instanceof Error ? error.message : String(error)}`)
+        return []
+      }
+    })
+
+    if (this.instance.config.raidBrowserIncludeFollowed) {
+      groupPromises.push(
+        (async () => {
+          if (!this.instance.auth.scopes.includes('user:read:follows')) {
+            const warningKey = `${this.instance.auth.userID}:${this.instance.config.raidBrowserTeams}`
+            if (this.followsScopeWarningKey !== warningKey) {
+              this.followsScopeWarningKey = warningKey
+              this.instance.log(
+                'warn',
+                'Followed raid candidates are unavailable because user:read:follows is missing. Enable the Followed Live Streams permission and authenticate again.',
+              )
+            }
+            return []
+          }
+
+          try {
+            return await this.loadFollowed(signal)
+          } catch (error) {
+            if (signal.aborted) throw error
+            this.instance.log('warn', `Unable to load followed raid candidates: ${error instanceof Error ? error.message : String(error)}`)
+            return []
+          }
+        })(),
+      )
+    }
+
+    return Promise.all(groupPromises)
+  }
+
+  private async loadTeam(teamName: string, signal: AbortSignal): Promise<RaidCandidate[]> {
+    const teamResponse = await this.getHelix<TwitchTeam>(`teams?name=${encodeURIComponent(teamName)}`, signal)
+    const team = teamResponse.data[0]
+    if (!team || !Array.isArray(team.users)) throw new Error('team was not found or returned an invalid response')
+
+    const streams: TwitchStream[] = []
+    for (let offset = 0; offset < team.users.length; offset += 100) {
+      const userIds = team.users.slice(offset, offset + 100).map((user) => user.user_id)
+      if (userIds.length === 0) continue
+
+      const params = new URLSearchParams()
+      for (const userId of userIds) params.append('user_id', userId)
+      const streamResponse = await this.getHelix<TwitchStream>(`streams?${params.toString()}`, signal)
+      streams.push(...streamResponse.data)
+    }
+
+    return normalizeRaidCandidates(streams, 'team', team.team_display_name || team.team_name || teamName)
+  }
+
+  private async loadFollowed(signal: AbortSignal): Promise<RaidCandidate[]> {
+    const streams: TwitchStream[] = []
+    let cursor = ''
+
+    do {
+      const params = new URLSearchParams({ user_id: this.instance.auth.userID, first: '100' })
+      if (cursor) params.set('after', cursor)
+      const response = await this.getHelix<TwitchStream>(`streams/followed?${params.toString()}`, signal)
+      streams.push(...response.data)
+      cursor = response.pagination?.cursor ?? ''
+    } while (cursor)
+
+    return normalizeRaidCandidates(streams, 'followed', 'Followed')
+  }
+
+  private async getHelix<T>(path: string, signal: AbortSignal, mayRetry = true): Promise<HelixResponse<T>> {
+    const options = { ...this.instance.API.defaultOptions(), signal }
+    const response = await fetch(`https://api.twitch.tv/helix/${path}`, options)
+    this.instance.API.updateRatelimits(response.headers)
+
+    if (response.status === 429 && mayRetry) {
+      const resetSeconds = Number(response.headers.get('Ratelimit-Reset'))
+      if (!Number.isFinite(resetSeconds)) throw new Error('Twitch rate limit response did not include a valid reset time')
+
+      // Twitch sends an epoch timestamp. Waiting for it prevents a tight retry loop
+      // that would extend the rate-limit window and waste the module's shared quota.
+      // See https://dev.twitch.tv/docs/api/guide/#twitch-rate-limits.
+      await waitUntil(resetSeconds * 1000, signal)
+      return this.getHelix<T>(path, signal, false)
+    }
+
+    const body = (await response.json()) as HelixResponse<T> | { message?: string }
+    if (!response.ok || !('data' in body) || !Array.isArray(body.data)) {
+      throw new Error('message' in body && body.message ? body.message : `Twitch returned HTTP ${response.status}`)
+    }
+
+    return body
+  }
+}
