@@ -178,13 +178,13 @@ export class Chat {
     }
   }
 
-  public readonly chatMode = (selection: string, mode: string, value?: any): void => {
+  public readonly chatMode = (selection: string, mode: string, value?: number): void => {
     const channel = this.instance.channels.find((x) => x.username === selection)
 
     if (channel && this.client && this.connected) {
       if (mode === 'emote') channel.chatModes.emote ? this.client.emoteonlyoff(selection) : this.client.emoteonly(selection)
-      if (mode === 'followers') channel.chatModes.followers || value == '0' ? this.client.followersonlyoff(selection) : this.client.followersonly(selection, value)
-      if (mode === 'slow') channel.chatModes.slow || value == '0' ? this.client.slowoff(selection) : this.client.slow(selection, value)
+      if (mode === 'followers') channel.chatModes.followers || value === 0 ? this.client.followersonlyoff(selection) : this.client.followersonly(selection, value)
+      if (mode === 'slow') channel.chatModes.slow || value === 0 ? this.client.slowoff(selection) : this.client.slow(selection, value)
       if (mode === 'sub') channel.chatModes.sub ? this.client.subscribersoff(selection) : this.client.subscribers(selection)
       if (mode === 'unique') channel.chatModes.unique ? this.client.r9kbetaoff(selection) : this.client.r9kbeta(selection)
     }

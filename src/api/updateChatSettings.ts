@@ -17,7 +17,7 @@ type UpdateChatSettingsSuccess = {
   }[]
 }
 
-export const updateChatSettings = async (instance: TwitchInstance, selection: string, mode: string, state: any): Promise<void> => {
+export const updateChatSettings = async (instance: TwitchInstance, selection: string, mode: string, state: unknown): Promise<void> => {
   if (!instance.auth.scopes.includes('moderator:manage:chat_settings')) {
     instance.log('debug', 'Unable to update Chat Settings, missing moderator:manage:chat_settings scope')
     return
@@ -34,16 +34,17 @@ export const updateChatSettings = async (instance: TwitchInstance, selection: st
   })
 
   if (mode === 'slow_mode_wait_time') {
-    if (state === 0) {
+    const numericState = Number(state)
+    if (numericState === 0) {
       requestOptions.body = JSON.stringify({ slow_mode: false })
-    } else if (state.toString() == channel.chatModes.slowLength) {
+    } else if (String(state) === channel.chatModes.slowLength.toString()) {
       requestOptions.body = JSON.stringify({
         slow_mode: !channel.chatModes.slow,
       })
     } else {
-      let waitTime = state
-      if (state < 3) waitTime = 3
-      if (state > 120) waitTime = 120
+      let waitTime = numericState
+      if (numericState < 3) waitTime = 3
+      if (numericState > 120) waitTime = 120
 
       requestOptions.body = JSON.stringify({
         slow_mode: true,
@@ -53,6 +54,7 @@ export const updateChatSettings = async (instance: TwitchInstance, selection: st
   }
 
   if (mode === 'follower_mode_duration') {
+    const numericState = Number(state)
     if (state === '0' || state === '') {
       requestOptions.body = JSON.stringify({ follower_mode: false })
     } else if (state === channel.chatModes.followersLength.toString()) {
@@ -60,9 +62,9 @@ export const updateChatSettings = async (instance: TwitchInstance, selection: st
         follower_mode: !channel.chatModes.followers,
       })
     } else {
-      let duration = state
-      if (state < 0) duration = 0
-      if (state > 129600) duration = 129600
+      let duration = numericState
+      if (numericState < 0) duration = 0
+      if (numericState > 129600) duration = 129600
 
       requestOptions.body = JSON.stringify({
         follower_mode: true,

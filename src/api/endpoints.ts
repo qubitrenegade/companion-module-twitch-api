@@ -32,7 +32,7 @@ import { updateUsers } from './updateUsers'
 
 export default class Endpoints {
   createClip = createClip
-	createClipVOD = createClipVOD
+  createClipVOD = createClipVOD
   createPoll = createPoll
   createPrediction = createPrediction
   createStreamMarker = createStreamMarker
