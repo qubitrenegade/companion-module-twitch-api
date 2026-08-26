@@ -1,21 +1,32 @@
 # Path Notes
 
+**v4.3.0**
+
+- Added a configurable raid-target browser for prioritized Twitch teams and followed live channels
+- Added wrapped previous, next, direct-select, refresh, and explicit start-raid actions
+- Added raid candidate variables, feedbacks, presets, pagination, source isolation, and refresh concurrency protection
+
 **v4.2.0**
+
 - Added `Create a Clip from VOD` Action
 - Updated `Create a Clip` Action to support Twitch's update to the API endpoint
 
 **v4.1.1**
+
 - Fixed a bug causing a crash when updating chat settings
 - Improved error logging
 
 **v4.1.0**
+
 - Added PATCH, PUT, and DELETE, methods for custom API request, as well as defaulting to JSON content type
 - Fixed a variable typo on selected channel category id
 
 **v4.0.1**
+
 - Fix for Open Channel NodeJS permissions
 
 **v4.0.0**
+
 - Revamped Oauth process to now use the Device Code Flow (DCF) is used for all module users
 - Added config options for the permissions required for various endpoints
 - Reworked entire API request logic
@@ -24,23 +35,29 @@
 - Added `ad_next`, `ad_last`, `ad_duration`, `ad_preroll_free_time`, `ad_snooze_count`, and `ad_snooze_refresh` variables for ad scheduling
 
 **v3.0.4**
+
 - Fix to try resolve excess token server requests
 
 **v3.0.2**
+
 - Added support for Instance Variables in chat messages
 
 **v3.0.1**
-- Removed deprecated endpoint 
+
+- Removed deprecated endpoint
 
 ## v3.0.0
+
 - Updated module for Companion 3
 - Replaced most of the deprecated Chat Commands with API requests
 - Added additional API functionality in preparation for upcoming features
 
 ## v2.0.0
+
 - Reworked module in TypeScript
 - Allowed sending messages to channel other than a users own
 - More instance variables
 
 ## v1.0.0
+
 - Initial release
