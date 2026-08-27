@@ -255,17 +255,28 @@ export class RaidBrowser {
   }
 
   public select(delta: number): void {
+    const previousIndex = this.instance.raidCandidateIndex
     this.instance.raidCandidateIndex = selectWrappedRaidCandidateIndex(this.instance.raidCandidateIndex, this.instance.raidCandidates.length, delta)
     this.publishState()
+    this.logSelection(previousIndex)
   }
 
   public selectIndex(displayIndex: number): void {
+    const previousIndex = this.instance.raidCandidateIndex
     if (this.instance.raidCandidates.length === 0) {
       this.instance.raidCandidateIndex = 0
     } else {
       this.instance.raidCandidateIndex = Math.min(Math.max(Math.trunc(displayIndex) - 1, 0), this.instance.raidCandidates.length - 1)
     }
     this.publishState()
+    this.logSelection(previousIndex)
+  }
+
+  private logSelection(previousIndex: number): void {
+    const candidate = this.instance.raidCandidates[this.instance.raidCandidateIndex]
+    const position = candidate ? this.instance.raidCandidateIndex + 1 : 0
+    const previousPosition = this.instance.raidCandidates.length > 0 ? previousIndex + 1 : 0
+    this.instance.log('debug', `Raid browser selection: ${previousPosition} -> ${position} of ${this.instance.raidCandidates.length}${candidate ? ` (@${candidate.login})` : ''}`)
   }
 
   private stop(): void {

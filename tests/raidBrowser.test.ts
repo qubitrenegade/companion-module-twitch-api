@@ -221,6 +221,18 @@ describe('RaidBrowser Twitch loading', () => {
     expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['new'])
   })
 
+  test('publishes and logs wrapped encoder selection changes', () => {
+    const { instance, browser } = makeInstance()
+    instance.raidCandidates = [candidate('1'), candidate('2')]
+    instance.raidCandidateIndex = 1
+
+    browser.select(1)
+
+    expect(instance.raidCandidateIndex).toBe(0)
+    expect(instance.variables.updateVariables).toHaveBeenCalled()
+    expect(instance.log).toHaveBeenCalledWith('debug', 'Raid browser selection: 2 -> 1 of 2 (@user1)')
+  })
+
   test('waits for the Twitch reset header before retrying one rate-limited request', async () => {
     const { instance, browser } = makeInstance()
     fetchMock
