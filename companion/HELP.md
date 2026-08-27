@@ -33,7 +33,7 @@ Starting a raid is separate from browsing or changing the selection. Enable the 
 
 For a rotary encoder, assign **Raid Browser: Select Previous Candidate** and **Raid Browser: Select Next Candidate** to the encoder directions. The raid candidate variables can supply LCD text, including display name, source, viewers, category, title, current index, and count. Both direction actions wrap at the ends of the list. Use **Raid Browser: Refresh Candidates** for an on-demand update. Set the refresh interval to `0` to disable automatic refresh.
 
-If no candidates appear, check that the browser is enabled, authentication is valid, team names are Twitch team names rather than channel names, and the relevant channels are currently live. Twitch team and followed-stream failures are isolated, so a failed source does not remove candidates returned by another source.
+If no candidates appear, press **Raid Browser: Refresh Candidates**, then inspect the Twitch connection entries in Companion's Logs tab. A completed refresh reports its final candidate count and the live-channel count returned by each source. The `raid_browser_status`, `raid_browser_last_refresh`, `raid_browser_last_error`, and `raid_browser_source_summary` variables expose the same lifecycle state for diagnostics or control-surface displays. Twitch team and followed-stream failures are isolated, so a failed source does not remove candidates returned by another source.
 
 ### Twitch Rate Limits
 

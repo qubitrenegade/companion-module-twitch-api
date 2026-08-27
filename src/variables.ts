@@ -56,6 +56,10 @@ export class Variables {
     variables.add({ name: 'Raid Candidate Source Name', variableId: 'raid_candidate_source_name' })
     variables.add({ name: 'Raid Candidate Available', variableId: 'raid_candidate_available' })
     variables.add({ name: 'Raid Candidates JSON', variableId: 'raid_candidates_json' })
+    variables.add({ name: 'Raid Browser Status', variableId: 'raid_browser_status' })
+    variables.add({ name: 'Raid Browser Last Refresh', variableId: 'raid_browser_last_refresh' })
+    variables.add({ name: 'Raid Browser Last Error', variableId: 'raid_browser_last_error' })
+    variables.add({ name: 'Raid Browser Source Summary', variableId: 'raid_browser_source_summary' })
 
     variables.add({ name: `Selected Channel`, variableId: `selected` })
     variables.add({ name: `Selected Channel Live`, variableId: `selected_live` })
@@ -146,6 +150,10 @@ export class Variables {
     newVariables.raid_candidate_source_name = raidCandidate?.sourceName ?? ''
     newVariables.raid_candidate_available = Boolean(raidCandidate).toString()
     newVariables.raid_candidates_json = JSON.stringify(this.instance.raidCandidates)
+    newVariables.raid_browser_status = this.instance.raidBrowser.diagnostics.status
+    newVariables.raid_browser_last_refresh = this.instance.raidBrowser.diagnostics.lastRefreshAt
+    newVariables.raid_browser_last_error = this.instance.raidBrowser.diagnostics.lastError
+    newVariables.raid_browser_source_summary = this.instance.raidBrowser.diagnostics.sourceSummary
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
     newVariables[`selected`] = selectedChannel ? selectedChannel.displayName : ''

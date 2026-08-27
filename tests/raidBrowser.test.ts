@@ -151,6 +151,13 @@ describe('RaidBrowser Twitch loading', () => {
     expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['2', '1'])
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(String(fetchMock.mock.calls[1][0])).toContain('after=next+page')
+    expect(browser.diagnostics).toMatchObject({
+      status: 'ready',
+      lastError: '',
+      sourceSummary: 'Followed: 2 live',
+    })
+    expect(browser.diagnostics.lastRefreshAt).not.toBe('')
+    expect(instance.log).toHaveBeenCalledWith('info', 'Raid browser refresh complete: 2 candidates (Followed: 2 live)')
   })
 
   test('keeps successful sources when another team fails', async () => {
@@ -164,6 +171,38 @@ describe('RaidBrowser Twitch loading', () => {
 
     expect(instance.raidCandidates).toEqual([candidate('2', 20, 'Good')])
     expect(instance.log).toHaveBeenCalledWith('warn', expect.stringContaining('team broken'))
+    expect(browser.diagnostics).toMatchObject({
+      status: 'ready',
+      lastError: 'broken: team was not found or returned an invalid response',
+      sourceSummary: 'broken: failed; good: 1 live',
+    })
+  })
+
+  test('reports a successful refresh that finds no live channels', async () => {
+    const { instance, browser } = makeInstance()
+    fetchMock.mockResolvedValueOnce(response({ data: [], pagination: {} }))
+
+    await browser.refresh()
+
+    expect(browser.diagnostics).toMatchObject({
+      status: 'no_candidates',
+      lastError: '',
+      sourceSummary: 'Followed: 0 live',
+    })
+    expect(instance.log).toHaveBeenCalledWith('warn', 'Raid browser refresh complete: 0 candidates (Followed: 0 live)')
+  })
+
+  test('reports an error when every configured source fails', async () => {
+    const { browser } = makeInstance({ raidBrowserTeams: 'broken', raidBrowserIncludeFollowed: false })
+    fetchMock.mockResolvedValueOnce(response({ data: [] }))
+
+    await browser.refresh()
+
+    expect(browser.diagnostics).toMatchObject({
+      status: 'error',
+      lastError: 'broken: team was not found or returned an invalid response',
+      sourceSummary: 'broken: failed',
+    })
   })
 
   test('prevents an older overlapping refresh from overwriting newer state', async () => {

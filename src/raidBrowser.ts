@@ -39,6 +39,19 @@ interface HelixResponse<T> {
   }
 }
 
+interface RaidCandidateSourceResult {
+  candidates: RaidCandidate[]
+  summary: string
+  error: string
+}
+
+export interface RaidBrowserDiagnostics {
+  status: 'disabled' | 'waiting_for_authentication' | 'refreshing' | 'ready' | 'no_candidates' | 'error'
+  lastRefreshAt: string
+  lastError: string
+  sourceSummary: string
+}
+
 export const parseRaidBrowserTeams = (value: string): string[] => {
   const seen = new Set<string>()
 
@@ -137,6 +150,12 @@ export class RaidBrowser {
   private refreshGeneration = 0
   private refreshTimer: ReturnType<typeof setInterval> | null = null
   private followsScopeWarningKey = ''
+  public diagnostics: RaidBrowserDiagnostics = {
+    status: 'waiting_for_authentication',
+    lastRefreshAt: '',
+    lastError: '',
+    sourceSummary: '',
+  }
 
   constructor(instance: TwitchInstance) {
     this.instance = instance
@@ -155,11 +174,16 @@ export class RaidBrowser {
     this.followsScopeWarningKey = ''
 
     if (!this.instance.config.raidBrowserEnabled) {
+      this.setDiagnostics({ status: 'disabled', lastError: '', sourceSummary: '' })
       this.replaceCandidates([])
       return
     }
 
-    if (!this.instance.auth.valid) return
+    if (!this.instance.auth.valid) {
+      this.setDiagnostics({ status: 'waiting_for_authentication', lastError: '', sourceSummary: '' })
+      this.publishState()
+      return
+    }
 
     const refreshSeconds = Math.max(0, Number(this.instance.config.raidBrowserRefreshSeconds) || 0)
     if (refreshSeconds > 0) {
@@ -171,10 +195,14 @@ export class RaidBrowser {
 
   public async refresh(): Promise<void> {
     if (!this.instance.config.raidBrowserEnabled) {
+      this.setDiagnostics({ status: 'disabled', lastError: '', sourceSummary: '' })
+      this.publishState()
       this.instance.log('debug', 'Raid browser refresh skipped because the browser is disabled')
       return
     }
     if (!this.instance.auth.valid || !this.instance.auth.userID) {
+      this.setDiagnostics({ status: 'waiting_for_authentication', lastError: 'A valid Twitch authentication is required' })
+      this.publishState()
       this.instance.log('warn', 'Raid browser refresh requires a valid Twitch authentication')
       return
     }
@@ -188,15 +216,38 @@ export class RaidBrowser {
     this.refreshController?.abort()
     const controller = new AbortController()
     this.refreshController = controller
+    this.setDiagnostics({ status: 'refreshing', lastError: '' })
+    this.publishState()
+    this.instance.log('debug', 'Raid browser refresh started')
 
     try {
-      const groups = await this.loadCandidateGroups(controller.signal)
+      const sourceResults = await this.loadCandidateGroups(controller.signal)
       if (generation !== this.refreshGeneration || controller.signal.aborted) return
 
-      this.replaceCandidates(mergeRaidCandidateGroups(groups, this.instance.auth.userID))
+      const candidates = mergeRaidCandidateGroups(
+        sourceResults.map((result) => result.candidates),
+        this.instance.auth.userID,
+      )
+      const sourceSummary = sourceResults.map((result) => result.summary).join('; ') || 'No sources configured'
+      const errors = sourceResults.map((result) => result.error).filter(Boolean)
+      const allSourcesFailed = sourceResults.length > 0 && errors.length === sourceResults.length
+
+      this.setDiagnostics({
+        status: allSourcesFailed ? 'error' : candidates.length > 0 ? 'ready' : 'no_candidates',
+        lastRefreshAt: new Date().toISOString(),
+        lastError: errors.join('; '),
+        sourceSummary,
+      })
+      this.replaceCandidates(candidates)
+
+      const message = `Raid browser refresh complete: ${candidates.length} candidates (${sourceSummary})`
+      this.instance.log(candidates.length > 0 ? 'info' : 'warn', message)
     } catch (error) {
       if (!controller.signal.aborted) {
-        this.instance.log('warn', `Raid browser refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+        const message = error instanceof Error ? error.message : String(error)
+        this.setDiagnostics({ status: 'error', lastRefreshAt: new Date().toISOString(), lastError: message })
+        this.publishState()
+        this.instance.log('warn', `Raid browser refresh failed: ${message}`)
       }
     } finally {
       if (generation === this.refreshGeneration) this.refreshController = null
@@ -238,14 +289,20 @@ export class RaidBrowser {
     this.instance.checkFeedbacks('raidCandidateAvailable', 'raidBrowserHasCandidates', 'raidCandidateSource')
   }
 
-  private async loadCandidateGroups(signal: AbortSignal): Promise<RaidCandidate[][]> {
+  private setDiagnostics(update: Partial<RaidBrowserDiagnostics>): void {
+    this.diagnostics = { ...this.diagnostics, ...update }
+  }
+
+  private async loadCandidateGroups(signal: AbortSignal): Promise<RaidCandidateSourceResult[]> {
     const groupPromises = parseRaidBrowserTeams(this.instance.config.raidBrowserTeams).map(async (teamName) => {
       try {
-        return await this.loadTeam(teamName, signal)
+        const candidates = await this.loadTeam(teamName, signal)
+        return { candidates, summary: `${teamName}: ${candidates.length} live`, error: '' }
       } catch (error) {
         if (signal.aborted) throw error
-        this.instance.log('warn', `Unable to load raid candidates from team ${teamName}: ${error instanceof Error ? error.message : String(error)}`)
-        return []
+        const message = error instanceof Error ? error.message : String(error)
+        this.instance.log('warn', `Unable to load raid candidates from team ${teamName}: ${message}`)
+        return { candidates: [], summary: `${teamName}: failed`, error: `${teamName}: ${message}` }
       }
     })
 
@@ -261,15 +318,21 @@ export class RaidBrowser {
                 'Followed raid candidates are unavailable because user:read:follows is missing. Enable the Followed Live Streams permission and authenticate again.',
               )
             }
-            return []
+            return {
+              candidates: [],
+              summary: 'Followed: authentication required',
+              error: 'Followed: user:read:follows permission is missing',
+            }
           }
 
           try {
-            return await this.loadFollowed(signal)
+            const candidates = await this.loadFollowed(signal)
+            return { candidates, summary: `Followed: ${candidates.length} live`, error: '' }
           } catch (error) {
             if (signal.aborted) throw error
-            this.instance.log('warn', `Unable to load followed raid candidates: ${error instanceof Error ? error.message : String(error)}`)
-            return []
+            const message = error instanceof Error ? error.message : String(error)
+            this.instance.log('warn', `Unable to load followed raid candidates: ${message}`)
+            return { candidates: [], summary: 'Followed: failed', error: `Followed: ${message}` }
           }
         })(),
       )
