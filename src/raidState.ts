@@ -28,7 +28,9 @@ export class RaidState {
   private readonly instance: TwitchInstance
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
   private errorTimer: ReturnType<typeof setTimeout> | null = null
+  private operationGeneration = 0
   private operationTail: Promise<void> = Promise.resolve()
+  private destroyed = false
   public pending: PendingRaid | null = null
   public lastError: RaidOperationError | null = null
 
@@ -98,6 +100,8 @@ export class RaidState {
    * them. They cannot be carried across an authentication identity change.
    */
   public authenticationInvalidated(): void {
+    this.operationGeneration++
+    this.operationTail = Promise.resolve()
     this.clearTimer()
     this.clearErrorTimer()
     this.pending = null
@@ -106,6 +110,9 @@ export class RaidState {
   }
 
   public destroy(): void {
+    this.destroyed = true
+    this.operationGeneration++
+    this.operationTail = Promise.resolve()
     this.clearTimer()
     this.clearErrorTimer()
     this.pending = null
@@ -126,7 +133,8 @@ export class RaidState {
    * countdown. Running them in operator order prevents a slower earlier HTTP
    * response from reversing the state established by a later command.
    */
-  public async runOperation<T>(operation: () => Promise<T>): Promise<T> {
+  public async runOperation<T>(operation: (operationIsCurrent: () => boolean) => Promise<T>): Promise<T> {
+    const operationGeneration = this.operationGeneration
     const previousOperation = this.operationTail
     let releaseOperation!: () => void
     this.operationTail = new Promise<void>((resolve) => {
@@ -135,7 +143,7 @@ export class RaidState {
 
     await previousOperation
     try {
-      return await operation()
+      return await operation(() => !this.destroyed && operationGeneration === this.operationGeneration)
     } finally {
       releaseOperation()
     }

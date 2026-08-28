@@ -366,6 +366,45 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('does not make a new broadcaster wait for a stalled old-account operation', async () => {
+    const instance = makeInstance()
+    const oldResponse = deferred<Response>()
+    fetchMock.mockReturnValueOnce(oldResponse.promise).mockResolvedValueOnce(response({ data: [{ created_at: new Date().toISOString(), is_mature: false }] }, 200))
+
+    const oldOperation = startARaid(instance, 'old_target')
+    for (let turn = 0; turn < 12; turn++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    instance.auth.identityGeneration++
+    instance.auth.userID = 'new-broadcaster'
+    instance.raidState.authenticationInvalidated()
+
+    const newOperation = startARaid(instance, 'new_target')
+    await expect(newOperation).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'target' })
+
+    oldResponse.resolve(response({ data: [{ created_at: new Date().toISOString(), is_mature: false }] }, 200))
+    await expect(oldOperation).resolves.toBe(false)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'target' })
+    instance.raidState.destroy()
+  })
+
+  test('discards an in-flight operation after raid state is destroyed', async () => {
+    const instance = makeInstance()
+    const oldResponse = deferred<Response>()
+    fetchMock.mockReturnValueOnce(oldResponse.promise)
+
+    const operation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 4; turn++) await Promise.resolve()
+    instance.raidState.destroy()
+    const variableUpdatesAfterDestroy = jest.mocked(instance.variables.updateVariables).mock.calls.length
+    oldResponse.resolve(response({ data: [{ created_at: new Date().toISOString(), is_mature: false }] }, 200))
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.pending).toBeNull()
+    expect(instance.variables.updateVariables).toHaveBeenCalledTimes(variableUpdatesAfterDestroy)
+  })
+
   test('clears stale local state when Twitch reports no pending raid', async () => {
     const instance = makeInstance()
     instance.raidState.markPending('target', 'Target', new Date().toISOString())

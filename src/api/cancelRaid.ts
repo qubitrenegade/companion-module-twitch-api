@@ -22,15 +22,16 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
   const identityGeneration = instance.auth.identityGeneration
   const authenticationIsCurrent = (): boolean => instance.auth.valid && instance.auth.identityGeneration === identityGeneration && instance.auth.userID === broadcasterID
 
-  return instance.raidState.runOperation(async () => {
-    if (!authenticationIsCurrent()) return false
+  return instance.raidState.runOperation(async (raidOperationIsCurrent) => {
+    const operationIsCurrent = (): boolean => authenticationIsCurrent() && raidOperationIsCurrent()
+    if (!operationIsCurrent()) return false
 
     const requestOptions = instance.API.defaultOptions()
     requestOptions.method = 'DELETE'
 
     try {
       const response = await fetch(`https://api.twitch.tv/helix/raids?broadcaster_id=${broadcasterID}`, requestOptions)
-      if (!authenticationIsCurrent()) return false
+      if (!operationIsCurrent()) return false
       instance.API.updateRatelimits(response.headers)
 
       if (response.status === 204) {
@@ -41,7 +42,7 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
       }
 
       const body = await parseJsonResponse<APIError>(response)
-      if (!authenticationIsCurrent()) return false
+      if (!operationIsCurrent()) return false
 
       /*
        * A 404 means Twitch no longer has a cancellable countdown. Clearing the
@@ -55,7 +56,7 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
       instance.log('warn', `Failed to Cancel Raid: ${body ? JSON.stringify(body, null, 2) : message}`)
       return false
     } catch (error) {
-      if (!authenticationIsCurrent()) return false
+      if (!operationIsCurrent()) return false
       const message = error instanceof Error ? error.message : String(error)
       instance.raidState.markError('cancel', message)
       instance.log('warn', `Failed to Cancel Raid: ${message}`)
