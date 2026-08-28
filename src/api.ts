@@ -7,6 +7,20 @@ export type APIError = {
   message: string
 }
 
+/**
+ * HTTP status and headers remain useful when a server or intermediary returns
+ * an empty or non-JSON error page. Keeping JSON parsing non-throwing lets each
+ * endpoint preserve that transport evidence in its operator diagnostics.
+ */
+export const parseJsonResponse = async <T extends object>(response: Response): Promise<T | null> => {
+  try {
+    const body: unknown = await response.json()
+    return typeof body === 'object' && body !== null ? (body as T) : null
+  } catch {
+    return null
+  }
+}
+
 export class API extends Endpoints {
   constructor(instance: TwitchInstance) {
     super()

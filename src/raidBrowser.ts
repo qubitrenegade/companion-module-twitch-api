@@ -420,7 +420,7 @@ export class RaidBrowser {
       const userIds = team.users.slice(offset, offset + 100).map((user) => user.user_id)
       if (userIds.length === 0) continue
 
-      const params = new URLSearchParams()
+      const params = new URLSearchParams({ first: '100' })
       for (const userId of userIds) params.append('user_id', userId)
       const streamResponse = await this.getHelix<TwitchStream>(`streams?${params.toString()}`, signal)
       streams.push(...streamResponse.data)

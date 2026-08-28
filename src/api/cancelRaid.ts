@@ -1,5 +1,5 @@
 import type TwitchInstance from '../index'
-import { type APIError } from '../api'
+import { type APIError, parseJsonResponse } from '../api'
 
 export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => {
   instance.raidState.clearError()
@@ -32,7 +32,7 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
       return true
     }
 
-    const body = (await response.json()) as APIError
+    const body = await parseJsonResponse<APIError>(response)
 
     /*
      * A 404 means Twitch no longer has a cancellable countdown. Clearing the
@@ -40,10 +40,10 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
      * early through the Twitch interface.
      */
     if (response.status === 404) instance.raidState.clear()
-    const statusCode = typeof body.status === 'number' ? body.status : response.status
-    const message = typeof body.message === 'string' ? body.message : `Twitch returned HTTP ${response.status}`
+    const statusCode = body && typeof body.status === 'number' ? body.status : response.status
+    const message = body && typeof body.message === 'string' ? body.message : `Twitch returned HTTP ${response.status}`
     instance.raidState.markError('cancel', message, statusCode)
-    instance.log('warn', `Failed to Cancel Raid: ${JSON.stringify(body, null, 2)}`)
+    instance.log('warn', `Failed to Cancel Raid: ${body ? JSON.stringify(body, null, 2) : message}`)
     return false
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

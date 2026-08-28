@@ -167,6 +167,7 @@ describe('RaidBrowser Twitch loading', () => {
 
     expect(instance.raidCandidates).toEqual([candidate('1', 15, 'Alpha')])
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('first=100')
     expect(instance.log).toHaveBeenCalledWith('warn', expect.stringContaining('user:read:follows'))
   })
 

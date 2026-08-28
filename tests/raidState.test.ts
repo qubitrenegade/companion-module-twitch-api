@@ -12,6 +12,16 @@ const response = (body: unknown, status: number): Response =>
     json: jest.fn(async () => body),
   }) as unknown as Response
 
+const nonJsonResponse = (status: number): Response =>
+  ({
+    status,
+    ok: status >= 200 && status < 300,
+    headers: new Headers(),
+    json: jest.fn(async () => {
+      throw new SyntaxError('Unexpected token')
+    }),
+  }) as unknown as Response
+
 const makeInstance = () => {
   const instance = {
     auth: {
@@ -113,6 +123,16 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('preserves the HTTP status when a rejected start has a non-JSON body', async () => {
+    const instance = makeInstance()
+    fetchMock.mockResolvedValueOnce(nonJsonResponse(502))
+
+    await expect(startARaid(instance, 'target')).resolves.toBe(false)
+
+    expect(instance.raidState.lastError).toMatchObject({ statusCode: 502, message: 'Twitch returned HTTP 502' })
+    instance.raidState.destroy()
+  })
+
   test('publishes Twitch raid rate-limit details for operator feedback', async () => {
     const instance = makeInstance()
     fetchMock.mockResolvedValueOnce(
@@ -178,6 +198,18 @@ describe('raid API state transitions', () => {
 
     expect(instance.raidState.pending).toBeNull()
     expect(instance.raidState.lastError).toMatchObject({ statusCode: 404, message: 'Not Found' })
+    instance.raidState.destroy()
+  })
+
+  test('clears stale state and preserves status for a non-JSON 404 cancellation', async () => {
+    const instance = makeInstance()
+    instance.raidState.markPending('target', 'Target', new Date().toISOString())
+    fetchMock.mockResolvedValueOnce(nonJsonResponse(404))
+
+    await expect(cancelRaid(instance)).resolves.toBe(false)
+
+    expect(instance.raidState.pending).toBeNull()
+    expect(instance.raidState.lastError).toMatchObject({ statusCode: 404, message: 'Twitch returned HTTP 404' })
     instance.raidState.destroy()
   })
 })
