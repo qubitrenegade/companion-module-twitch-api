@@ -28,6 +28,7 @@ export class RaidState {
   private readonly instance: TwitchInstance
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
   private errorTimer: ReturnType<typeof setTimeout> | null = null
+  private operationTail: Promise<void> = Promise.resolve()
   public pending: PendingRaid | null = null
   public lastError: RaidOperationError | null = null
 
@@ -118,6 +119,26 @@ export class RaidState {
 
   public errorActive(now = Date.now()): boolean {
     return this.lastError !== null && Date.parse(this.lastError.displayUntil) > now
+  }
+
+  /**
+   * Twitch applies start and cancel requests to one broadcaster-wide raid
+   * countdown. Running them in operator order prevents a slower earlier HTTP
+   * response from reversing the state established by a later command.
+   */
+  public async runOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const previousOperation = this.operationTail
+    let releaseOperation!: () => void
+    this.operationTail = new Promise<void>((resolve) => {
+      releaseOperation = resolve
+    })
+
+    await previousOperation
+    try {
+      return await operation()
+    } finally {
+      releaseOperation()
+    }
   }
 
   private clearTimer(): void {

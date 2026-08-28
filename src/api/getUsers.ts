@@ -57,8 +57,9 @@ export const getUsers = async (instance: TwitchInstance, options: GetUsersOption
   try {
     body = (await response.json()) as APIError | GetUsersSuccess
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    instance.log('warn', `getUsers err: ${message}`)
+    const parseMessage = error instanceof Error ? error.message : String(error)
+    const message = response.ok ? 'Twitch returned an invalid user lookup response' : `Twitch returned HTTP ${response.status}`
+    instance.log('warn', `getUsers err: ${message}: ${parseMessage}`)
     if (options.throwOnError) throw new GetUsersError(message, response.status)
     return []
   }

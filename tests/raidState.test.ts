@@ -324,6 +324,48 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('sends a later cancellation only after an earlier start completes', async () => {
+    const instance = makeInstance()
+    const startResponse = deferredJsonResponse(200)
+    fetchMock.mockResolvedValueOnce(startResponse.response).mockResolvedValueOnce(response(undefined, 204))
+
+    const startOperation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve()
+    expect(startResponse.json).toHaveBeenCalledTimes(1)
+    const cancelOperation = cancelRaid(instance)
+    for (let turn = 0; turn < 4; turn++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    startResponse.resolveBody({ data: [{ created_at: new Date().toISOString(), is_mature: false }] })
+
+    await expect(startOperation).resolves.toBe(true)
+    await expect(cancelOperation).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.raidState.pending).toBeNull()
+    instance.raidState.destroy()
+  })
+
+  test('sends a later start only after an earlier cancellation completes', async () => {
+    const instance = makeInstance()
+    instance.raidState.markPending('old-target', 'Old Target', new Date().toISOString())
+    const cancelResponse = deferred<Response>()
+    fetchMock.mockReturnValueOnce(cancelResponse.promise).mockResolvedValueOnce(response({ data: [{ created_at: new Date().toISOString(), is_mature: false }] }, 200))
+
+    const cancelOperation = cancelRaid(instance)
+    const startOperation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 4; turn++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(instance.API.getUsers).not.toHaveBeenCalled()
+
+    cancelResponse.resolve(response(undefined, 204))
+
+    await expect(cancelOperation).resolves.toBe(true)
+    await expect(startOperation).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'target' })
+    instance.raidState.destroy()
+  })
+
   test('clears stale local state when Twitch reports no pending raid', async () => {
     const instance = makeInstance()
     instance.raidState.markPending('target', 'Target', new Date().toISOString())
@@ -364,6 +406,18 @@ describe('user lookup request construction', () => {
     await getUsers(instance, { type: 'login', channels: ['first', 'missing&login=other'] })
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.twitch.tv/helix/users?login=first&login=missing%26login%3Dother')
+    instance.raidState.destroy()
+  })
+
+  test('reports the HTTP status when a user lookup response is not JSON', async () => {
+    const instance = makeInstance()
+    fetchMock.mockResolvedValueOnce(nonJsonResponse(502))
+
+    await expect(getUsers(instance, { type: 'login', channels: 'target', throwOnError: true })).rejects.toMatchObject({
+      name: 'GetUsersError',
+      message: 'Twitch returned HTTP 502',
+      statusCode: 502,
+    })
     instance.raidState.destroy()
   })
 })
