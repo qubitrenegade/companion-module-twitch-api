@@ -1,5 +1,7 @@
 import type TwitchInstance from './index'
 
+export const RAID_BROWSER_REFRESH_TIMEOUT_MS = 15_000
+
 export interface RaidCandidate {
   userId: string
   login: string
@@ -256,8 +258,20 @@ export class RaidBrowser {
     this.publishState()
     this.instance.log('debug', 'Raid browser refresh started')
 
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null
+    let refreshTimedOut = false
     try {
-      const sourceResults = await this.loadCandidateGroups(controller.signal)
+      const sourceResults = await Promise.race([
+        this.loadCandidateGroups(controller.signal),
+        new Promise<never>((_resolve, reject) => {
+          refreshTimeout = setTimeout(() => {
+            refreshTimedOut = true
+            const error = new Error('Raid browser refresh timed out')
+            controller.abort(error)
+            reject(error)
+          }, RAID_BROWSER_REFRESH_TIMEOUT_MS)
+        }),
+      ])
       if (generation !== this.refreshGeneration || controller.signal.aborted) return false
 
       const candidates = mergeRaidCandidateGroups(
@@ -280,7 +294,7 @@ export class RaidBrowser {
       this.instance.log(candidates.length > 0 ? 'info' : 'warn', message)
       return true
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (generation === this.refreshGeneration && (!controller.signal.aborted || refreshTimedOut)) {
         const message = error instanceof Error ? error.message : String(error)
         this.setDiagnostics({ status: 'error', lastRefreshAt: new Date().toISOString(), lastError: message })
         this.publishState()
@@ -288,6 +302,7 @@ export class RaidBrowser {
       }
       return false
     } finally {
+      if (refreshTimeout) clearTimeout(refreshTimeout)
       if (generation === this.refreshGeneration) this.refreshController = null
     }
   }

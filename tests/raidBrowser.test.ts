@@ -9,6 +9,7 @@ import {
   parseRaidBrowserTeams,
   parseSuggestedRaidLogin,
   preserveRaidCandidateSelection,
+  RAID_BROWSER_REFRESH_TIMEOUT_MS,
   RaidBrowser,
   type RaidCandidate,
   selectWrappedRaidCandidateIndex,
@@ -290,6 +291,23 @@ describe('RaidBrowser Twitch loading', () => {
     first.resolve(response({ data: [stream('1', 10)], pagination: {} }))
     await jest.runOnlyPendingTimersAsync()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    browser.destroy()
+    jest.useRealTimers()
+  })
+
+  test('times out a stalled refresh and allows the next scheduled refresh', async () => {
+    jest.useFakeTimers()
+    const { instance, browser } = makeInstance({ raidBrowserRefreshSeconds: 1 })
+    fetchMock.mockReturnValueOnce(new Promise<Response>(() => undefined)).mockResolvedValueOnce(response({ data: [stream('recovered', 10)], pagination: {} }))
+
+    browser.authenticationReady()
+    await jest.advanceTimersByTimeAsync(RAID_BROWSER_REFRESH_TIMEOUT_MS)
+
+    expect(browser.diagnostics).toMatchObject({ status: 'error', lastError: 'Raid browser refresh timed out' })
+    await jest.advanceTimersByTimeAsync(1_000)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['recovered'])
 
     browser.destroy()
     jest.useRealTimers()
