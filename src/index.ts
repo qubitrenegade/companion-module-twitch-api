@@ -154,6 +154,7 @@ class TwitchInstance extends InstanceBase<Config> {
     this.config = normalizeConfig(config)
     this.updateInstance()
     this.variables.updateDefinitions()
+    this.raidBrowser.reconfigure()
     this.auth.init()
     this.updateStateInterval = setInterval(() => this.updateState(), 1000)
   }

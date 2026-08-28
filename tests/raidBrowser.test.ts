@@ -251,6 +251,26 @@ describe('RaidBrowser Twitch loading', () => {
     expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['new'])
   })
 
+  test('skips periodic refreshes while another refresh is in flight', async () => {
+    jest.useFakeTimers()
+    const { browser } = makeInstance({ raidBrowserRefreshSeconds: 1 })
+    const first = deferred<Response>()
+    fetchMock.mockReturnValueOnce(first.promise)
+
+    browser.authenticationReady()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await jest.advanceTimersByTimeAsync(3_000)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    first.resolve(response({ data: [stream('1', 10)], pagination: {} }))
+    await jest.runOnlyPendingTimersAsync()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    browser.destroy()
+    jest.useRealTimers()
+  })
+
   test('does not apply default selection after its refresh is superseded', async () => {
     const { instance, browser } = makeInstance()
     instance.raidCandidates = [candidate('existing-1'), candidate('existing-2')]
@@ -325,6 +345,19 @@ describe('RaidBrowser Twitch loading', () => {
     expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
     removeListener.mockRestore()
     jest.useRealTimers()
+  })
+
+  test('reports a rate-limit response that omits its reset header', async () => {
+    const { browser } = makeInstance()
+    fetchMock.mockResolvedValueOnce(response({ message: 'Too Many Requests' }, 429))
+
+    await browser.refresh()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(browser.diagnostics).toMatchObject({
+      status: 'error',
+      lastError: 'Followed: Twitch rate limit response did not include a valid reset time',
+    })
   })
 
   test('does not poll or request browser APIs while disabled', async () => {

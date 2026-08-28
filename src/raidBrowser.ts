@@ -214,7 +214,7 @@ export class RaidBrowser {
 
     const refreshSeconds = Math.max(0, Number(this.instance.config.raidBrowserRefreshSeconds) || 0)
     if (refreshSeconds > 0) {
-      this.refreshTimer = setInterval(() => void this.refresh(), refreshSeconds * 1000)
+      this.refreshTimer = setInterval(() => void this.refreshFromTimer(), refreshSeconds * 1000)
     }
 
     if (refreshImmediately) void this.refresh()
@@ -281,6 +281,14 @@ export class RaidBrowser {
     } finally {
       if (generation === this.refreshGeneration) this.refreshController = null
     }
+  }
+
+  private async refreshFromTimer(): Promise<void> {
+    // A scheduled refresh is maintenance work, so it must not displace an
+    // in-flight refresh. Manual actions still call refresh() directly and may
+    // supersede older work because the operator's request takes priority.
+    if (this.refreshController) return
+    await this.refresh()
   }
 
   public select(delta: number): void {
@@ -440,7 +448,8 @@ export class RaidBrowser {
     this.instance.API.updateRatelimits(response.headers)
 
     if (response.status === 429 && mayRetry) {
-      const resetSeconds = Number(response.headers.get('Ratelimit-Reset'))
+      const resetHeader = response.headers.get('Ratelimit-Reset')
+      const resetSeconds = resetHeader === null ? Number.NaN : Number(resetHeader)
       if (!Number.isFinite(resetSeconds)) throw new Error('Twitch rate limit response did not include a valid reset time')
 
       // Twitch sends an epoch timestamp. Waiting for it prevents a tight retry loop

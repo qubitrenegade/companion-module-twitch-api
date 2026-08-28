@@ -2,11 +2,9 @@
 
 Module for integration with Twitch through their API and Chat, documentation for that can be found here: https://dev.twitch.tv/docs
 
+User setup, permissions, operating instructions, and troubleshooting are documented in [Companion Help](./companion/HELP.md).
+
 ## Development
-
-The module keeps OAuth ownership in `src/auth.ts` and shared Twitch request accounting in `src/api.ts`. Raid-browser lifecycle and candidate state transitions live in `src/raidBrowser.ts`; the short-lived Twitch raid countdown estimate lives in `src/raidState.ts`. Actions, variables, feedbacks, and presets consume those centralized states and do not poll Twitch independently. This separation is important because refresh timers, request cancellation, source isolation, selection preservation, and pending-raid expiry must behave identically for every Companion control.
-
-Twitch does not provide a pending-raid polling endpoint. `RaidState` therefore records only start requests accepted by this module, expires them after Twitch's 90-second window, and clears stale state when cancellation reports that no countdown remains. It also retains structured raid-operation errors while publishing a separate 15-second operator-alert window. Do not extend this state into a claim that a raid completed. Verified completion would require a Channel Raid EventSub subscription.
 
 Use Node.js 22.14 and install the locked dependencies with `yarn install`. Before submitting a change, run:
 
@@ -21,13 +19,11 @@ yarn companion-module-build
 
 Unit tests mock Twitch responses and must not access Twitch. The Node workflow runs the unit suite in addition to the TypeScript and Companion package builds.
 
-## Example layouts
+`src/index.ts` owns the Companion instance lifecycle and coordinates configuration, polling, definitions, and connection cleanup. OAuth and permission ownership stay in `src/auth.ts`. Shared Twitch requests and rate-limit accounting stay in `src/api.ts` and its endpoint files. Chat transport and chat-derived state belong to `src/chat.ts`. The action, feedback, variable, and preset files translate those shared services into Companion controls; they should not create competing polling loops or duplicate protocol state.
 
-The repository provides page-only Companion 5 examples for an [Elgato Stream Deck +](./companion/assets/streamdeck-plus-raid-browser.companionconfig) and a [Stream Deck + XL](./companion/assets/streamdeck-plus-xl-raid-browser.companionconfig). Both contain a minimal placeholder `Twitch` connection and no connection configuration, authentication data, channel names, team names, surface identifiers, or custom-variable dependencies. During import, map `Twitch` to an authenticated Twitch API connection.
+Raid-browser lifecycle and candidate state transitions live in `src/raidBrowser.ts`; the short-lived Twitch raid countdown estimate lives in `src/raidState.ts`. Actions, variables, feedbacks, and presets consume those centralized states and do not poll Twitch independently. This separation is important because refresh timers, request cancellation, source isolation, selection preservation, and pending-raid expiry must behave identically for every Companion control.
 
-Each example assigns the start or cancel action to `1/0/0` and previous and next selection to `1/1/0` and `1/1/1`. The Stream Deck + uses contiguous LCD and encoder columns on rows `2` and `3`. The Stream Deck + XL uses rows `4` and `5` at its verified sparse columns `3`, `5`, `6`, and `8`. The rightmost assigned encoder browses candidates. Every assigned encoder push cancels a pending raid, while the browser-encoder push refreshes the default candidate when no raid is pending.
-
-The files under [`companion/assets/`](./companion/assets/) are plain, formatted JSON stored with Companion's `.companionconfig` extension. Each file is both directly importable and reviewable in a normal source diff, so there is no generated or compressed duplicate to keep synchronized.
+Twitch does not provide a pending-raid polling endpoint. `RaidState` therefore records only start requests accepted by this module, expires them after Twitch's 90-second window, and clears stale state when cancellation reports that no countdown remains. It also retains structured raid-operation errors while publishing a separate 15-second operator-alert window. Do not extend this state into a claim that a raid completed. Verified completion would require a Channel Raid EventSub subscription.
 
 # Patch Notes
 

@@ -39,11 +39,17 @@ The selected monitored channel is connection state, not a writable Companion var
 
 The **Browse raid candidates with a rotary encoder** preset provides previous and next rotation actions and refreshes the list when pressed. The separate previous, next, refresh, start, cancel, and candidate-details presets can be combined into a custom surface layout. Previous and next selection wrap at the ends of the list.
 
-The [Stream Deck + example page](assets/streamdeck-plus-raid-browser.companionconfig) and [Stream Deck + XL example page](assets/streamdeck-plus-xl-raid-browser.companionconfig) demonstrate complete Companion 5 layouts. They are page-only exports with a placeholder `Twitch` connection and contain no authentication or broadcaster configuration. Import one through the Buttons tab, then map `Twitch` to your authenticated Twitch API connection. Both expect the surface at the page grid origin. The Stream Deck + uses LCD row `2` and encoder row `3`; the Stream Deck + XL uses LCD row `4` and encoder row `5` with sparse columns.
-
 **Raid Browser: Refresh Candidates** updates the list while preserving the selected broadcaster when that broadcaster remains live. **Raid Browser: Refresh and Select Default Candidate** instead looks for an explicit `up next: @login` phrase in its Suggestion Text. When Suggestion Text is blank, it uses the selected monitored channel's title. It selects that live candidate when found, otherwise it selects candidate 1. Other `@mentions` are intentionally ignored so a guest or sponsor mention cannot silently become the raid target.
 
 The connection's refresh interval controls automatic refreshes. The default is 60 seconds. Set it to `0` to disable automatic refresh. Manual refresh actions still work when automatic refresh is disabled.
+
+#### Example layouts
+
+The [Stream Deck + example page](assets/streamdeck-plus-raid-browser.companionconfig) and [Stream Deck + XL example page](assets/streamdeck-plus-xl-raid-browser.companionconfig) demonstrate complete Companion 5 layouts. They are page-only exports with a placeholder `Twitch` connection and contain no authentication data, connection settings, channel names, team names, surface identifiers, or custom-variable dependencies. Import one through the Buttons tab, then map `Twitch` to your authenticated Twitch API connection. Both expect the surface at the page grid origin.
+
+Each example assigns start or cancel to `1/0/0`, previous selection to `1/1/0`, and next selection to `1/1/1`. The Stream Deck + uses contiguous LCD and encoder columns on rows `2` and `3`. The Stream Deck + XL uses rows `4` and `5` at its verified sparse columns `3`, `5`, `6`, and `8`. The rightmost assigned encoder browses candidates. Every assigned encoder push cancels a pending raid, while the browser-encoder push refreshes the default candidate when no raid is pending.
+
+The example files are plain, formatted JSON stored with Companion's `.companionconfig` extension. Each file is directly importable and readable in a source diff. There is no generated or compressed duplicate to keep synchronized.
 
 #### Candidate metadata and displays
 
