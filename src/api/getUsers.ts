@@ -1,15 +1,10 @@
 import type TwitchInstance from '../index'
-import { type APIError } from '../api'
 
 type GetUsersOptions = {
   type: 'login' | 'id'
   channels: string | string[]
   throwOnError?: boolean
   signal?: AbortSignal
-}
-
-type GetUsersSuccess = {
-  data: User[]
 }
 
 type User = {
@@ -55,9 +50,9 @@ export const getUsers = async (instance: TwitchInstance, options: GetUsersOption
 
   instance.API.updateRatelimits(response.headers)
 
-  let body: APIError | GetUsersSuccess
+  let body: unknown
   try {
-    body = (await response.json()) as APIError | GetUsersSuccess
+    body = await response.json()
   } catch (error) {
     const parseMessage = error instanceof Error ? error.message : String(error)
     const message = response.ok ? 'Twitch returned an invalid user lookup response' : `Twitch returned HTTP ${response.status}`
@@ -66,10 +61,22 @@ export const getUsers = async (instance: TwitchInstance, options: GetUsersOption
     return []
   }
 
-  if ('data' in body) return body.data
+  if (typeof body !== 'object' || body === null) {
+    const message = response.ok ? 'Twitch returned an invalid user lookup response' : `Twitch returned HTTP ${response.status}`
+    instance.log('warn', `getUsers err: ${message}`)
+    if (options.throwOnError) throw new GetUsersError(message, response.status)
+    return []
+  }
 
-  const statusCode = typeof body.status === 'number' ? body.status : response.status
-  const message = typeof body.message === 'string' ? body.message : `Twitch returned HTTP ${response.status}`
+  if ('data' in body && Array.isArray(body.data)) return body.data as User[]
+
+  const statusCode = 'status' in body && typeof body.status === 'number' ? body.status : response.status
+  const message =
+    'message' in body && typeof body.message === 'string'
+      ? body.message
+      : response.ok
+        ? 'Twitch returned an invalid user lookup response'
+        : `Twitch returned HTTP ${response.status}`
   instance.log('warn', `Failed to Get Users: ${JSON.stringify(body)}`)
   if (options.throwOnError) throw new GetUsersError(message, statusCode)
   return []

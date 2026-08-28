@@ -502,4 +502,19 @@ describe('user lookup request construction', () => {
     })
     instance.raidState.destroy()
   })
+
+  test.each([
+    { body: null, status: 200, message: 'Twitch returned an invalid user lookup response' },
+    { body: 'upstream failure', status: 502, message: 'Twitch returned HTTP 502' },
+  ])('handles a JSON primitive user lookup response with status $status', async ({ body, status, message }) => {
+    const instance = makeInstance()
+    fetchMock.mockResolvedValueOnce(response(body, status))
+
+    await expect(getUsers(instance, { type: 'login', channels: 'target', throwOnError: true })).rejects.toMatchObject({
+      name: 'GetUsersError',
+      message,
+      statusCode: status,
+    })
+    instance.raidState.destroy()
+  })
 })

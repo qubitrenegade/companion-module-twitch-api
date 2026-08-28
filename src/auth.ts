@@ -349,6 +349,7 @@ export class Auth {
     this.login = ''
     this.userID = ''
     this.scopes = []
+    this.instance.chat.authenticationInvalidated()
     this.instance.raidBrowser.authenticationInvalidated()
     this.instance.raidState.authenticationInvalidated()
   }

@@ -33,11 +33,12 @@ describe('device-code authentication startup', () => {
       expect(auth.userID).toBe('new-user-id')
       expect(auth.valid).toBe(true)
     })
+    const chatInvalidated = jest.fn()
     const instance = {
       config: { accessToken: '', refreshToken: '' },
       saveConfig: jest.fn(),
       log: jest.fn(),
-      chat: { init: jest.fn() },
+      chat: { authenticationInvalidated: chatInvalidated, init: jest.fn() },
       updateInstance: jest.fn(),
       API: { initialPoll: jest.fn(), pollData: jest.fn() },
       raidBrowser: { authenticationInvalidated, authenticationReady },
@@ -56,6 +57,7 @@ describe('device-code authentication startup', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(authenticationInvalidated).toHaveBeenCalledTimes(1)
+    expect(chatInvalidated).toHaveBeenCalledTimes(1)
     expect(raidStateInvalidated).toHaveBeenCalledTimes(1)
     expect(authenticationReady).toHaveBeenCalledTimes(1)
     expect(authenticationInvalidated.mock.invocationCallOrder[0]).toBeLessThan(authenticationReady.mock.invocationCallOrder[0])
@@ -67,10 +69,12 @@ describe('device-code authentication startup', () => {
   test('clears broadcaster-owned state when token refresh fails permanently', async () => {
     const authenticationInvalidated = jest.fn()
     const raidStateInvalidated = jest.fn()
+    const chatInvalidated = jest.fn()
     const instance = {
       config: { accessToken: 'old-access', refreshToken: 'old-refresh' },
       saveConfig: jest.fn(),
       log: jest.fn(),
+      chat: { authenticationInvalidated: chatInvalidated },
       raidBrowser: { authenticationInvalidated },
       raidState: { authenticationInvalidated: raidStateInvalidated },
     } as unknown as TwitchInstance
@@ -89,6 +93,7 @@ describe('device-code authentication startup', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(auth).toMatchObject({ valid: false, login: '', userID: '', scopes: [], accessToken: '', refreshToken: '' })
     expect(authenticationInvalidated).toHaveBeenCalledTimes(1)
+    expect(chatInvalidated).toHaveBeenCalledTimes(1)
     expect(raidStateInvalidated).toHaveBeenCalledTimes(1)
     expect(instance.saveConfig).toHaveBeenCalledWith(expect.objectContaining({ accessToken: '', refreshToken: '' }))
 
@@ -102,7 +107,7 @@ describe('device-code authentication startup', () => {
       config: { accessToken: 'old-access', refreshToken: 'old-refresh' },
       saveConfig: jest.fn(),
       log: jest.fn(),
-      chat: { init: jest.fn() },
+      chat: { authenticationInvalidated: jest.fn(), init: jest.fn() },
       updateInstance: jest.fn(),
       API: { initialPoll: jest.fn(), pollData: jest.fn() },
       raidBrowser: { authenticationInvalidated: jest.fn(), authenticationReady },
@@ -136,7 +141,7 @@ describe('device-code authentication startup', () => {
       config: { accessToken: 'access', refreshToken: 'refresh' },
       saveConfig: jest.fn(),
       log: jest.fn(),
-      chat: { init: jest.fn() },
+      chat: { authenticationInvalidated: jest.fn(), init: jest.fn() },
       updateInstance: jest.fn(),
       API: { initialPoll: jest.fn(), pollData: jest.fn() },
       raidBrowser: { authenticationInvalidated: jest.fn(), authenticationReady },
