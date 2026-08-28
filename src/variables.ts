@@ -13,6 +13,8 @@ interface InstanceVariableValue {
 
 export class Variables {
   private readonly instance: VMixInstance
+  private raidCandidatesJsonSource: VMixInstance['raidCandidates'] | null = null
+  private raidCandidatesJson = '[]'
   //private currentDefinitions: Set<InstanceVariableDefinition> = new Set()
 
   constructor(instance: VMixInstance) {
@@ -173,7 +175,16 @@ export class Variables {
     newVariables.raid_candidate_source_type = raidCandidate?.sourceType ?? ''
     newVariables.raid_candidate_source_name = raidCandidate?.sourceName ?? ''
     newVariables.raid_candidate_available = Boolean(raidCandidate).toString()
-    newVariables.raid_candidates_json = JSON.stringify(this.instance.raidCandidates)
+    /*
+     * RaidBrowser replaces the candidate array whenever its contents change.
+     * Array identity therefore gives this one-second update path a cheap cache
+     * key while still publishing fresh JSON immediately after every refresh.
+     */
+    if (this.raidCandidatesJsonSource !== this.instance.raidCandidates) {
+      this.raidCandidatesJsonSource = this.instance.raidCandidates
+      this.raidCandidatesJson = JSON.stringify(this.instance.raidCandidates)
+    }
+    newVariables.raid_candidates_json = this.raidCandidatesJson
     newVariables.raid_browser_status = this.instance.raidBrowser.diagnostics.status
     newVariables.raid_browser_last_refresh = this.instance.raidBrowser.diagnostics.lastRefreshAt
     newVariables.raid_browser_last_error = this.instance.raidBrowser.diagnostics.lastError

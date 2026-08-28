@@ -3,6 +3,8 @@ import type { RaidCandidate } from '../src/raidBrowser'
 import { Variables } from '../src/variables'
 
 describe('raid variable contract', () => {
+  afterEach(() => jest.restoreAllMocks())
+
   test('defines and publishes candidate metadata and pending-raid state', () => {
     const setVariableDefinitions = jest.fn()
     const setVariableValues = jest.fn()
@@ -56,6 +58,8 @@ describe('raid variable contract', () => {
       setVariableValues,
     } as unknown as TwitchInstance
     const variables = new Variables(instance)
+    const initialCandidates = instance.raidCandidates
+    const stringify = jest.spyOn(JSON, 'stringify')
 
     variables.updateDefinitions()
     variables.updateVariables()
@@ -94,5 +98,12 @@ describe('raid variable contract', () => {
     variables.updateVariables()
 
     expect(setVariableValues).toHaveBeenLastCalledWith(expect.objectContaining({ raid_error_status: '' }))
+    expect(stringify.mock.calls.filter(([value]) => value === initialCandidates)).toHaveLength(1)
+
+    const replacementCandidates = [...initialCandidates]
+    instance.raidCandidates = replacementCandidates
+    variables.updateVariables()
+
+    expect(stringify.mock.calls.filter(([value]) => value === replacementCandidates)).toHaveLength(1)
   })
 })
