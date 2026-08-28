@@ -35,6 +35,8 @@ Starting a raid is separate from browsing or changing the selection. Enable the 
 
 The **Browse raid candidates with a rotary encoder** preset provides previous and next rotation actions and refreshes the list when pressed. The separate previous, next, refresh, start, cancel, and candidate-details presets can be combined into a custom surface layout. Previous and next selection wrap at the ends of the list.
 
+The [Stream Deck + raid-browser example page](assets/streamdeck-plus-raid-browser.companionconfig) demonstrates a complete four-encoder layout for Companion 5. It is a page-only export with a placeholder `Twitch` connection and contains no authentication or broadcaster configuration. Import it through the Buttons tab, then map `Twitch` to your authenticated Twitch API connection. The page expects the surface at the page grid origin: key rows are `0` and `1`, LCD segments are row `2`, and encoders are row `3`.
+
 **Raid Browser: Refresh Candidates** updates the list while preserving the selected broadcaster when that broadcaster remains live. **Raid Browser: Refresh and Select Default Candidate** instead looks for an explicit `up next: @login` phrase in its Suggestion Text. When Suggestion Text is blank, it uses the selected monitored channel's title. It selects that live candidate when found, otherwise it selects candidate 1. Other `@mentions` are intentionally ignored so a guest or sponsor mention cannot silently become the raid target.
 
 The connection's refresh interval controls automatic refreshes. The default is 60 seconds. Set it to `0` to disable automatic refresh. Manual refresh actions still work when automatic refresh is disabled.

@@ -21,6 +21,12 @@ yarn companion-module-build
 
 Unit tests mock Twitch responses and must not access Twitch. The Node workflow runs the unit suite in addition to the TypeScript and Companion package builds.
 
+## Example layout
+
+[`companion/assets/streamdeck-plus-raid-browser.companionconfig`](./companion/assets/streamdeck-plus-raid-browser.companionconfig) is a page-only Companion 5 example for an Elgato Stream Deck + placed at the page grid origin. It contains no connection configuration, authentication data, channel names, team names, surface identifiers, or custom-variable dependencies. During import, map its placeholder `Twitch` connection to an authenticated Twitch API connection.
+
+The example assigns the start or cancel action to `1/0/0`, previous and next selection to `1/1/0` and `1/1/1`, four raid-information segments to row `2`, and the four encoders to row `3`. The rightmost encoder browses candidates. Every encoder push cancels a pending raid, while a rightmost-encoder push refreshes the default candidate when no raid is pending.
+
 # Patch Notes
 
 **v4.3.0**
