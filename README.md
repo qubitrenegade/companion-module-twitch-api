@@ -6,7 +6,7 @@ Module for integration with Twitch through their API and Chat, documentation for
 
 The module keeps OAuth ownership in `src/auth.ts` and shared Twitch request accounting in `src/api.ts`. Raid-browser lifecycle and candidate state transitions live in `src/raidBrowser.ts`; the short-lived Twitch raid countdown estimate lives in `src/raidState.ts`. Actions, variables, feedbacks, and presets consume those centralized states and do not poll Twitch independently. This separation is important because refresh timers, request cancellation, source isolation, selection preservation, and pending-raid expiry must behave identically for every Companion control.
 
-Twitch does not provide a pending-raid polling endpoint. `RaidState` therefore records only start requests accepted by this module, expires them after Twitch's 90-second window, and clears stale state when cancellation reports that no countdown remains. Do not extend this state into a claim that a raid completed. Verified completion would require a Channel Raid EventSub subscription.
+Twitch does not provide a pending-raid polling endpoint. `RaidState` therefore records only start requests accepted by this module, expires them after Twitch's 90-second window, and clears stale state when cancellation reports that no countdown remains. It also retains structured raid-operation errors while publishing a separate 15-second operator-alert window. Do not extend this state into a claim that a raid completed. Verified completion would require a Channel Raid EventSub subscription.
 
 Use Node.js 22.14 and install the locked dependencies with `yarn install`. Before submitting a change, run:
 
@@ -29,6 +29,7 @@ Unit tests mock Twitch responses and must not access Twitch. The Node workflow r
 - Added wrapped previous, next, direct-select, refresh, and explicit start-raid actions
 - Added default selection from an explicit `up next: @login` title phrase
 - Added cancel-raid state, variables, feedback, and a local countdown estimate
+- Added transient operator feedback and diagnostic variables for raid API errors
 - Added raid candidate tags, language, start time, uptime, and thumbnail metadata
 - Added typed button and rotary presets, pagination, source isolation, and refresh concurrency protection
 - Selects the first configured channel on startup so selected-channel variables work without a separate action

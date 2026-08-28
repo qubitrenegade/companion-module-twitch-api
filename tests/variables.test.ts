@@ -43,6 +43,14 @@ describe('raid variable contract', () => {
           expiresAt: '2026-08-28T12:01:30.000Z',
         },
         remainingSeconds: jest.fn(() => 42),
+        lastError: {
+          operation: 'start',
+          statusCode: 429,
+          message: 'Too Many Requests',
+          occurredAt: '2026-08-28T12:00:10.000Z',
+          displayUntil: '2026-08-28T12:00:25.000Z',
+        },
+        errorActive: jest.fn(() => true),
       },
       setVariableDefinitions,
       setVariableValues,
@@ -61,6 +69,10 @@ describe('raid variable contract', () => {
         'raid_candidate_thumbnail_url',
         'raid_pending',
         'raid_pending_seconds_remaining',
+        'raid_error_active',
+        'raid_error_operation',
+        'raid_error_status',
+        'raid_error_message',
       ]),
     )
     expect(setVariableValues).toHaveBeenCalledWith(
@@ -71,6 +83,10 @@ describe('raid variable contract', () => {
         raid_pending: 'true',
         raid_pending_target_login: 'target',
         raid_pending_seconds_remaining: '42',
+        raid_error_active: 'true',
+        raid_error_operation: 'start',
+        raid_error_status: '429',
+        raid_error_message: 'Too Many Requests',
       }),
     )
   })

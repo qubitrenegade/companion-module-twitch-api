@@ -16,6 +16,7 @@ export interface TwitchFeedbacks {
   raidBrowserHasCandidates: TwitchFeedback<RaidBrowserHasCandidatesCallback>
   raidCandidateSource: TwitchFeedback<RaidCandidateSourceCallback>
   raidPending: TwitchFeedback<RaidPendingCallback>
+  raidError: TwitchFeedback<RaidErrorCallback>
 
   // Index signature
   [key: string]: TwitchFeedback<any>
@@ -58,6 +59,11 @@ interface RaidCandidateSourceCallback {
 
 interface RaidPendingCallback {
   type: 'raidPending'
+  options: Record<string, never>
+}
+
+interface RaidErrorCallback {
+  type: 'raidError'
   options: Record<string, never>
 }
 
@@ -225,6 +231,18 @@ export function getFeedbacks(instance: TwitchInstance): TwitchFeedbacks {
         bgcolor: combineRgb(180, 0, 0),
       },
       callback: (): boolean => instance.raidState.pending !== null,
+    },
+
+    raidError: {
+      type: 'boolean',
+      name: 'Raid Error Active',
+      description: 'Indicates whether a recent raid start or cancel error should be shown to the operator',
+      options: [],
+      style: {
+        color: combineRgb(255, 255, 255),
+        bgcolor: combineRgb(255, 0, 0),
+      },
+      callback: (): boolean => instance.raidState.errorActive(),
     },
   }
 }

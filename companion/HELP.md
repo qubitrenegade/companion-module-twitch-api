@@ -49,6 +49,8 @@ Variables are resolved through the Companion connection label. If the connection
 
 When Twitch accepts a start request, it opens a 90-second raid countdown. The module publishes `raid_pending`, target, creation time, expiry time, and estimated seconds remaining. **Cancel Pending Raid** sends Twitch's cancellation request. The **Raid Pending** feedback can color or switch a control while the local countdown is active.
 
+A failed start or cancellation publishes `raid_error_active`, the HTTP status, Twitch's error message, and the occurrence time. The active indicator lasts 15 seconds so a surface can show or flash an operator alert; the details remain available afterward for diagnostics. The **Raid Error Active** feedback provides the same transient signal for presets and custom buttons. In particular, Twitch limits start and cancel requests to 10 requests in 10 minutes, so a `429` response should be displayed rather than retried automatically.
+
 Twitch does not provide an endpoint for polling the countdown. If the broadcaster clicks Raid Now in Twitch before the countdown expires, the module cannot observe that early completion without EventSub and may continue to report a local pending estimate. A later cancel attempt receives Twitch's not-found response and clears the local state. This limitation is why the variables and feedback say pending rather than active or completed.
 
 #### Troubleshooting

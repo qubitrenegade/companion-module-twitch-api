@@ -9,17 +9,28 @@ type startARaidSuccess = {
 }
 
 export const startARaid = async (instance: TwitchInstance, targetUsername: string): Promise<boolean> => {
-  if (!instance.auth.userID) return false
+  instance.raidState.clearError()
+
+  if (!instance.auth.userID) {
+    const message = 'Unable to start a raid because a valid broadcaster authentication is required.'
+    instance.raidState.markError('start', message)
+    instance.log('warn', message)
+    return false
+  }
 
   if (!instance.auth.scopes.includes('channel:manage:raids')) {
-    instance.log('warn', 'Unable to start a raid. Enable the Raids permission and authenticate again.')
+    const message = 'Unable to start a raid. Enable the Raids permission and authenticate again.'
+    instance.raidState.markError('start', message)
+    instance.log('warn', message)
     return false
   }
 
   const target = await instance.API.getUsers(instance, { type: 'login', channels: targetUsername })
 
   if (!target[0]?.id) {
-    instance.log('warn', `Unable to raid ${targetUsername}. user not found`)
+    const message = `Unable to raid ${targetUsername}. User not found.`
+    instance.raidState.markError('start', message)
+    instance.log('warn', message)
     return false
   }
 
@@ -38,10 +49,14 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
       return true
     }
 
+    const statusCode = 'status' in body && typeof body.status === 'number' ? body.status : response.status
+    const message = 'message' in body && typeof body.message === 'string' ? body.message : `Twitch returned HTTP ${response.status}`
+    instance.raidState.markError('start', message, statusCode)
     instance.log('warn', `Failed to Start A Raid: ${JSON.stringify(body, null, 2)}`)
     return false
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    instance.raidState.markError('start', message)
     instance.log('warn', `Failed to Start A Raid: ${message}`)
     return false
   }

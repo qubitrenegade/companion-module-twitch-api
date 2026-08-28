@@ -80,6 +80,11 @@ export function getPresets(instance: TwitchInstance): CompanionPresetDefinitions
           options: {},
           style: { bgcolor: ACTION_RED, color: WHITE },
         },
+        {
+          feedbackId: 'raidError',
+          options: {},
+          style: { bgcolor: combineRgb(255, 0, 0), color: WHITE },
+        },
       ],
     },
     raidCancel: {

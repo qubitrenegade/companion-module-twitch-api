@@ -72,6 +72,11 @@ export class Variables {
     variables.add({ name: 'Raid Pending Created At', variableId: 'raid_pending_created_at' })
     variables.add({ name: 'Raid Pending Expires At', variableId: 'raid_pending_expires_at' })
     variables.add({ name: 'Raid Pending Seconds Remaining', variableId: 'raid_pending_seconds_remaining' })
+    variables.add({ name: 'Raid Error Active', variableId: 'raid_error_active' })
+    variables.add({ name: 'Raid Error Operation', variableId: 'raid_error_operation' })
+    variables.add({ name: 'Raid Error HTTP Status', variableId: 'raid_error_status' })
+    variables.add({ name: 'Raid Error Message', variableId: 'raid_error_message' })
+    variables.add({ name: 'Raid Error Occurred At', variableId: 'raid_error_occurred_at' })
 
     variables.add({ name: `Selected Channel`, variableId: `selected` })
     variables.add({ name: `Selected Channel Live`, variableId: `selected_live` })
@@ -179,6 +184,11 @@ export class Variables {
     newVariables.raid_pending_created_at = this.instance.raidState.pending?.createdAt ?? ''
     newVariables.raid_pending_expires_at = this.instance.raidState.pending?.expiresAt ?? ''
     newVariables.raid_pending_seconds_remaining = this.instance.raidState.remainingSeconds()
+    newVariables.raid_error_active = this.instance.raidState.errorActive().toString()
+    newVariables.raid_error_operation = this.instance.raidState.lastError?.operation ?? ''
+    newVariables.raid_error_status = this.instance.raidState.lastError?.statusCode || ''
+    newVariables.raid_error_message = this.instance.raidState.lastError?.message ?? ''
+    newVariables.raid_error_occurred_at = this.instance.raidState.lastError?.occurredAt ?? ''
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
     newVariables[`selected`] = selectedChannel ? selectedChannel.displayName : ''

@@ -6,6 +6,7 @@
 - Added wrapped previous, next, direct-select, refresh, and explicit start-raid actions
 - Added default selection from an explicit `up next: @login` title phrase
 - Added cancel-raid state, variables, feedback, and a local countdown estimate
+- Added transient operator feedback and diagnostic variables for raid API errors
 - Added raid candidate tags, language, start time, uptime, and thumbnail metadata
 - Added typed button and rotary presets, pagination, source isolation, and refresh concurrency protection
 

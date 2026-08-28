@@ -2,10 +2,19 @@ import type TwitchInstance from '../index'
 import { type APIError } from '../api'
 
 export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => {
-  if (!instance.auth.userID) return false
+  instance.raidState.clearError()
+
+  if (!instance.auth.userID) {
+    const message = 'Unable to cancel a raid because a valid broadcaster authentication is required.'
+    instance.raidState.markError('cancel', message)
+    instance.log('warn', message)
+    return false
+  }
 
   if (!instance.auth.scopes.includes('channel:manage:raids')) {
-    instance.log('warn', 'Unable to cancel a raid. Enable the Raids permission and authenticate again.')
+    const message = 'Unable to cancel a raid. Enable the Raids permission and authenticate again.'
+    instance.raidState.markError('cancel', message)
+    instance.log('warn', message)
     return false
   }
 
@@ -31,10 +40,14 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
      * early through the Twitch interface.
      */
     if (response.status === 404) instance.raidState.clear()
+    const statusCode = typeof body.status === 'number' ? body.status : response.status
+    const message = typeof body.message === 'string' ? body.message : `Twitch returned HTTP ${response.status}`
+    instance.raidState.markError('cancel', message, statusCode)
     instance.log('warn', `Failed to Cancel Raid: ${JSON.stringify(body, null, 2)}`)
     return false
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    instance.raidState.markError('cancel', message)
     instance.log('warn', `Failed to Cancel Raid: ${message}`)
     return false
   }
