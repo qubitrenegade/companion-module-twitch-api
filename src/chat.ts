@@ -14,23 +14,30 @@ export class Chat {
   private loadingTimer: NodeJS.Timeout | null = null
 
   public readonly destroy = (): void => {
-    if (this.client !== null) {
-      this.client.disconnect()
-      this.client.removeAllListeners()
-      if (this.joinPartTimeout) clearTimeout(this.joinPartTimeout)
-    }
+    this.authenticationInvalidated()
+  }
 
+  public readonly authenticationInvalidated = (): void => {
+    const client = this.client
+    this.client = null
+    this.connected = false
+    this.loading = false
+    if (this.joinPartTimeout) clearTimeout(this.joinPartTimeout)
     if (this.loadingTimer) clearTimeout(this.loadingTimer)
+    this.joinPartTimeout = null
+    this.loadingTimer = null
+
+    if (client !== null) {
+      client.disconnect().catch((error) => this.instance.log('debug', `Chat disconnect: ${error instanceof Error ? error.message : String(error)}`))
+      client.removeAllListeners()
+    }
   }
 
   public readonly init = (): void => {
     if (!this.instance.auth.valid) {
       this.instance.log('debug', 'Chat err: Invalid token')
       return
-    } else if (this.client !== null) {
-      this.client.disconnect()
-      this.client = null
-    }
+    } else if (this.client !== null) this.authenticationInvalidated()
 
     if (!this.instance.auth.scopes.includes('chat:read')) {
       this.instance.log('warn', 'Unable to connect to chat, missing chat read & write scopes')
@@ -178,13 +185,13 @@ export class Chat {
     }
   }
 
-  public readonly chatMode = (selection: string, mode: string, value?: any): void => {
+  public readonly chatMode = (selection: string, mode: string, value?: number): void => {
     const channel = this.instance.channels.find((x) => x.username === selection)
 
     if (channel && this.client && this.connected) {
       if (mode === 'emote') channel.chatModes.emote ? this.client.emoteonlyoff(selection) : this.client.emoteonly(selection)
-      if (mode === 'followers') channel.chatModes.followers || value == '0' ? this.client.followersonlyoff(selection) : this.client.followersonly(selection, value)
-      if (mode === 'slow') channel.chatModes.slow || value == '0' ? this.client.slowoff(selection) : this.client.slow(selection, value)
+      if (mode === 'followers') channel.chatModes.followers || value === 0 ? this.client.followersonlyoff(selection) : this.client.followersonly(selection, value)
+      if (mode === 'slow') channel.chatModes.slow || value === 0 ? this.client.slowoff(selection) : this.client.slow(selection, value)
       if (mode === 'sub') channel.chatModes.sub ? this.client.subscribersoff(selection) : this.client.subscribers(selection)
       if (mode === 'unique') channel.chatModes.unique ? this.client.r9kbetaoff(selection) : this.client.r9kbeta(selection)
     }

@@ -1,21 +1,18 @@
-import type {
-  CompanionActionDefinitions,
-  CompanionFeedbackDefinitions,
-  CompanionHTTPRequest,
-  CompanionHTTPResponse,
-  CompanionPresetDefinitions,
-  SomeCompanionConfigField,
-} from '@companion-module/base'
+import type { CompanionActionDefinitions, CompanionFeedbackDefinitions, CompanionHTTPRequest, CompanionHTTPResponse, SomeCompanionConfigField } from '@companion-module/base'
 import { InstanceBase, runEntrypoint } from '@companion-module/base'
 import { API } from './api'
 import { Auth } from './auth'
 import { getActions } from './actions'
 import { Chat } from './chat'
 import type { Config } from './config'
-import { getConfigFields } from './config'
+import { getConfigFields, normalizeConfig, RAID_BROWSER_CONFIG_DEFAULTS } from './config'
 import { getFeedbacks } from './feedback'
 import { httpHandler } from './http'
 import { getPresets } from './presets'
+import { RaidBrowser, type RaidCandidate } from './raidBrowser'
+import { RaidState } from './raidState'
+import { selectConfiguredChannel } from './channelSelection'
+import { getUpgrades } from './upgrade'
 import { Variables } from './variables'
 
 interface Channel {
@@ -122,7 +119,7 @@ class TwitchInstance extends InstanceBase<Config> {
     broadcasterSubscriptions: true,
     broadcasterVIPs: true,
     editorStreamMarkers: true,
-		editorCreateClips: true,
+    editorCreateClips: true,
     moderatorAnnouncements: true,
     moderatorAutomod: true,
     moderatorChatModeration: true,
@@ -135,13 +132,18 @@ class TwitchInstance extends InstanceBase<Config> {
     moderatorWarnings: true,
     userChat: true,
     userClips: true,
+    ...RAID_BROWSER_CONFIG_DEFAULTS,
   }
   public connected = false
   public data = {}
   public updateStateInterval: ReturnType<typeof setInterval> | null = null
   public selectedChannel = ''
+  public raidCandidates: RaidCandidate[] = []
+  public raidCandidateIndex = 0
 
   public readonly chat = new Chat(this)
+  public readonly raidBrowser = new RaidBrowser(this)
+  public readonly raidState = new RaidState(this)
   public readonly variables = new Variables(this)
 
   /**
@@ -149,9 +151,10 @@ class TwitchInstance extends InstanceBase<Config> {
    */
   public async init(config: Config): Promise<void> {
     this.log('debug', `Process ID: ${process.pid}`)
-    this.config = config
+    this.config = normalizeConfig(config)
     this.updateInstance()
     this.variables.updateDefinitions()
+    this.raidBrowser.reconfigure()
     this.auth.init()
     this.updateStateInterval = setInterval(() => this.updateState(), 1000)
   }
@@ -169,10 +172,18 @@ class TwitchInstance extends InstanceBase<Config> {
    * @description triggered every time the config for this instance is saved
    */
   public async configUpdated(config: Config): Promise<void> {
-    const channelUpdate = config.channels !== this.config.channels
-    this.config = config
+    const normalizedConfig = normalizeConfig(config)
+    const channelUpdate = normalizedConfig.channels !== this.config.channels
+    const raidBrowserUpdate =
+      normalizedConfig.raidBrowserEnabled !== this.config.raidBrowserEnabled ||
+      normalizedConfig.raidBrowserTeams !== this.config.raidBrowserTeams ||
+      normalizedConfig.raidBrowserIncludeFollowed !== this.config.raidBrowserIncludeFollowed ||
+      normalizedConfig.raidBrowserRefreshSeconds !== this.config.raidBrowserRefreshSeconds ||
+      normalizedConfig.userReadFollows !== this.config.userReadFollows
+    this.config = normalizedConfig
 
     if (channelUpdate) this.updateInstance()
+    if (raidBrowserUpdate) this.raidBrowser.reconfigure(this.config.raidBrowserEnabled)
     this.variables.updateDefinitions()
   }
 
@@ -183,6 +194,8 @@ class TwitchInstance extends InstanceBase<Config> {
     this.chat.destroy()
     this.auth.destroy()
     this.API.destroy()
+    this.raidBrowser.destroy()
+    this.raidState.destroy()
     if (this.updateStateInterval !== null) clearInterval(this.updateStateInterval)
 
     this.log('debug', `Instance destroyed: ${this.id}`)
@@ -246,6 +259,12 @@ class TwitchInstance extends InstanceBase<Config> {
         return channelData
       })
 
+    // The sorted channel list keeps dropdowns stable, but the first configured
+    // channel is the operator's intentional default. Choose it before sorting
+    // so presentation order cannot change startup behavior.
+    const configuredUsernames = this.channels.map((channel) => channel.username)
+    this.selectedChannel = selectConfiguredChannel(this.selectedChannel, configuredUsernames)
+
     this.channels.sort((a, b) => {
       return a.username < b.username ? -1 : 1
     })
@@ -258,7 +277,7 @@ class TwitchInstance extends InstanceBase<Config> {
     // Cast actions and feedbacks from VMix types to Companion types
     const actions = getActions(this) as CompanionActionDefinitions
     const feedbacks = getFeedbacks(this) as unknown as CompanionFeedbackDefinitions
-    const presets = getPresets(this) as unknown as CompanionPresetDefinitions
+    const presets = getPresets(this)
 
     this.setActionDefinitions(actions)
     this.setFeedbackDefinitions(feedbacks)
@@ -292,4 +311,4 @@ class TwitchInstance extends InstanceBase<Config> {
 
 export = TwitchInstance
 
-runEntrypoint(TwitchInstance, [])
+runEntrypoint(TwitchInstance, getUpgrades())

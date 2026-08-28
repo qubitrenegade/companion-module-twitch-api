@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22.14.x]
+        node-version: [22.18.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +26,24 @@ jobs:
           yarn install
         env:
           CI: true
+      - name: Test formatting
+        run: |
+          yarn prettier --check src tests companion/HELP.md README.md docs/PATCH_NOTES.md .github/workflows/node.yaml
+        env:
+          CI: true
+      - name: Test lint
+        run: |
+          yarn lint:test .
+        env:
+          CI: true
       - name: Test tsc
         run: |
           yarn build
+        env:
+          CI: true
+      - name: Test unit suite
+        run: |
+          yarn test --runInBand
         env:
           CI: true
       - name: Test package

@@ -50,7 +50,7 @@ export type Scopes =
   | 'channel:manage:vips'
   | 'channel:moderate'
   | 'clips:edit'
-	| 'editor:manage:clips'
+  | 'editor:manage:clips'
   | 'moderation:read'
   | 'moderator:manage:announcements'
   | 'moderator:manage:automod'
@@ -106,6 +106,8 @@ export class Auth {
   clientID = '0v78s08sgp7j9am52mpmqcztoz5mvw'
   deviceCode: string | null = null
   deviceCodeInterval: number = 5000
+  destroyed = false
+  identityGeneration = 0
   login = ''
   pollDeviceCode: ReturnType<typeof setTimeout> | null = null
   pollTokenCheck: ReturnType<typeof setInterval> | null = null
@@ -130,6 +132,7 @@ export class Auth {
     fetch(url, { method: 'POST' })
       .then(async (res) => res.json() as Promise<CheckDeviceCodeSuccess | CheckDeviceCodePending | CheckDeviceCodeInvalid>)
       .then((body) => {
+        if (this.destroyed) return
         if ('access_token' in body) {
           this.instance.log('debug', `Got DCF Tokens - ${JSON.stringify(body, null, 2)}`)
           this.accessToken = body.access_token
@@ -140,7 +143,12 @@ export class Auth {
           this.pollTokenCheck = setInterval(this.validateTokens, 1000 * 60 * 10)
 
           this.instance.saveConfig({ ...this.instance.config, accessToken: this.accessToken, refreshToken: this.refreshToken })
-          this.startup()
+
+          // A device-token response identifies the granted scopes but not the
+          // broadcaster. Clear any identity from an earlier authorization and
+          // let token validation populate userID before shared startup begins.
+          this.invalidateIdentity()
+          this.validateTokens()
         } else {
           if (body.message === 'authorization_pending') {
             this.instance.log('debug', `Authorization still pending`)
@@ -153,6 +161,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (this.destroyed) return
         this.instance.log('error', `Error checking Device Code: ${err.message || err}`)
       })
   }
@@ -161,8 +170,13 @@ export class Auth {
    * Clean up timers
    */
   destroy = (): void => {
+    this.destroyed = true
+    this.identityGeneration++
+    this.valid = false
     if (this.pollDeviceCode) clearTimeout(this.pollDeviceCode)
     if (this.pollTokenCheck) clearInterval(this.pollTokenCheck)
+    this.pollDeviceCode = null
+    this.pollTokenCheck = null
   }
 
   /**
@@ -177,6 +191,7 @@ export class Auth {
     return fetch(url, { method: 'POST' })
       .then(async (res) => res.json() as Promise<GetDeviceCode>)
       .then((body) => {
+        if (this.destroyed) return null
         this.deviceCode = body.device_code
         this.userCode = body.user_code
         this.verificationURL = body.verification_uri
@@ -196,7 +211,7 @@ export class Auth {
    * Generate Scopes
    * @returns {Scopes[]} Array of scopes
    */
-  private generateScopes = (): Scopes[] => {
+  public generateScopes = (): Scopes[] => {
     const scopes: Scopes[] = []
 
     if (this.instance.config.broadcasterAds) scopes.push('channel:read:ads', 'channel:manage:ads', 'channel:edit:commercial')
@@ -214,7 +229,7 @@ export class Auth {
     if (this.instance.config.broadcasterSubscriptions) scopes.push('channel:read:subscriptions')
     if (this.instance.config.broadcasterVIPs) scopes.push('channel:manage:vips')
     if (this.instance.config.editorStreamMarkers) scopes.push('channel:manage:broadcast')
-		if (this.instance.config.editorCreateClips) scopes.push('editor:manage:clips')
+    if (this.instance.config.editorCreateClips) scopes.push('editor:manage:clips')
 
     if (
       this.instance.config.moderatorAnnouncements ||
@@ -251,6 +266,7 @@ export class Auth {
     if (this.instance.config.moderatorWarnings) scopes.push('moderator:read:warnings', 'moderator:manage:warnings')
     if (this.instance.config.userChat) scopes.push('user:read:chat', 'chat:read', 'user:write:chat', 'chat:edit', 'user:manage:chat_color')
     if (this.instance.config.userClips) scopes.push('clips:edit')
+    if (this.instance.config.userReadFollows) scopes.push('user:read:follows')
 
     return scopes
   }
@@ -270,16 +286,23 @@ export class Auth {
    * Refresh tokens using the one time use Refresh Token
    */
   private refreshTokens = async (): Promise<void> => {
+    const identityGeneration = this.identityGeneration
+    const refreshToken = this.refreshToken
     const url = 'https://id.twitch.tv/oauth2/token'
     const options = {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: this.clientID, grant_type: 'refresh_token', refresh_token: this.refreshToken }),
+      body: new URLSearchParams({ client_id: this.clientID, grant_type: 'refresh_token', refresh_token: refreshToken }),
     }
 
     fetch(url, options)
       .then(async (res) => res.json() as Promise<RefreshTokenSuccess | RefreshTokenInvalid>)
       .then((body) => {
+        if (identityGeneration !== this.identityGeneration || refreshToken !== this.refreshToken) {
+          this.instance.log('debug', 'Discarding token refresh response from a superseded authentication')
+          return
+        }
+
         if ('access_token' in body) {
           this.instance.log('debug', `Refresh tokens: ${JSON.stringify(body, null, 2)}`)
           this.accessToken = body.access_token
@@ -288,7 +311,7 @@ export class Auth {
           this.validateTokens()
         } else {
           this.instance.log('warn', `Unable to refresh tokens, token might be expired or invalid such as from importing an old config. Please authenticate again.`)
-          this.valid = false
+          this.invalidateIdentity()
           this.accessToken = ''
           this.refreshToken = ''
           this.instance.saveConfig({ ...this.instance.config, accessToken: '', refreshToken: '' })
@@ -296,6 +319,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (identityGeneration !== this.identityGeneration || refreshToken !== this.refreshToken) return
         this.instance.log('error', `Error refreshing tokens: ${err.message || err}`)
         return null
       })
@@ -305,11 +329,29 @@ export class Auth {
    * Start Chat and API processes with valid tokens
    */
   private startup = (): void => {
+    if (this.destroyed) return
     this.valid = true
     this.instance.chat.init()
     this.instance.updateInstance()
     this.instance.API.initialPoll()
     this.instance.API.pollData()
+    this.instance.raidBrowser.authenticationReady()
+  }
+
+  /**
+   * Authentication state belongs to one broadcaster. Clearing all consumers
+   * together prevents controls created for an old account from acting on the
+   * next account after reauthorization.
+   */
+  private invalidateIdentity = (): void => {
+    this.identityGeneration++
+    this.valid = false
+    this.login = ''
+    this.userID = ''
+    this.scopes = []
+    this.instance.chat.authenticationInvalidated()
+    this.instance.raidBrowser.authenticationInvalidated()
+    this.instance.raidState.authenticationInvalidated()
   }
 
   /**
@@ -321,14 +363,22 @@ export class Auth {
     if (this.accessToken === '' || this.refreshToken === '') {
       this.instance.log('debug', `Unable to validate tokens - Access Token: ${this.accessToken} - Refresh Token: ${this.refreshToken}`)
       if (this.pollTokenCheck) clearInterval(this.pollTokenCheck)
+      return
     }
 
+    const identityGeneration = this.identityGeneration
+    const accessToken = this.accessToken
     const url = 'https://id.twitch.tv/oauth2/validate'
-    const options = { headers: { Authorization: `OAuth ${this.accessToken}` } }
+    const options = { headers: { Authorization: `OAuth ${accessToken}` } }
 
     fetch(url, options)
       .then(async (res) => res.json() as Promise<ValidateTokenSuccess | ValidateTokenInvalid>)
       .then((body) => {
+        if (identityGeneration !== this.identityGeneration || accessToken !== this.accessToken) {
+          this.instance.log('debug', 'Discarding token validation response from a superseded authentication')
+          return
+        }
+
         if ('client_id' in body) {
           // Valid Token
           this.login = body.login
@@ -350,6 +400,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (identityGeneration !== this.identityGeneration || accessToken !== this.accessToken) return
         this.instance.log('error', `Error validating tokens: ${err.message || err}`)
       })
   }

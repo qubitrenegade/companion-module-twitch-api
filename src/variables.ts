@@ -13,6 +13,8 @@ interface InstanceVariableValue {
 
 export class Variables {
   private readonly instance: VMixInstance
+  private raidCandidatesJsonSource: VMixInstance['raidCandidates'] | null = null
+  private raidCandidatesJson = '[]'
   //private currentDefinitions: Set<InstanceVariableDefinition> = new Set()
 
   constructor(instance: VMixInstance) {
@@ -42,6 +44,41 @@ export class Variables {
     variables.add({ name: `Ratelimit Limit`, variableId: `ratelimit_limit` })
     variables.add({ name: `Ratelimit Remaining`, variableId: `ratelimit_remaining` })
     variables.add({ name: `Requests per Min`, variableId: `requests_per_min` })
+
+    variables.add({ name: 'Raid Candidate Count', variableId: 'raid_candidate_count' })
+    variables.add({ name: 'Raid Candidate Index', variableId: 'raid_candidate_index' })
+    variables.add({ name: 'Raid Candidate Login', variableId: 'raid_candidate_login' })
+    variables.add({ name: 'Raid Candidate Display Name', variableId: 'raid_candidate_display_name' })
+    variables.add({ name: 'Raid Candidate User ID', variableId: 'raid_candidate_user_id' })
+    variables.add({ name: 'Raid Candidate Viewers', variableId: 'raid_candidate_viewers' })
+    variables.add({ name: 'Raid Candidate Viewers (formatted)', variableId: 'raid_candidate_viewers_formatted' })
+    variables.add({ name: 'Raid Candidate Category', variableId: 'raid_candidate_category' })
+    variables.add({ name: 'Raid Candidate Title', variableId: 'raid_candidate_title' })
+    variables.add({ name: 'Raid Candidate Tags', variableId: 'raid_candidate_tags' })
+    variables.add({ name: 'Raid Candidate Tags JSON', variableId: 'raid_candidate_tags_json' })
+    variables.add({ name: 'Raid Candidate Language', variableId: 'raid_candidate_language' })
+    variables.add({ name: 'Raid Candidate Started At', variableId: 'raid_candidate_started_at' })
+    variables.add({ name: 'Raid Candidate Uptime', variableId: 'raid_candidate_uptime' })
+    variables.add({ name: 'Raid Candidate Thumbnail URL', variableId: 'raid_candidate_thumbnail_url' })
+    variables.add({ name: 'Raid Candidate Source Type', variableId: 'raid_candidate_source_type' })
+    variables.add({ name: 'Raid Candidate Source Name', variableId: 'raid_candidate_source_name' })
+    variables.add({ name: 'Raid Candidate Available', variableId: 'raid_candidate_available' })
+    variables.add({ name: 'Raid Candidates JSON', variableId: 'raid_candidates_json' })
+    variables.add({ name: 'Raid Browser Status', variableId: 'raid_browser_status' })
+    variables.add({ name: 'Raid Browser Last Refresh', variableId: 'raid_browser_last_refresh' })
+    variables.add({ name: 'Raid Browser Last Error', variableId: 'raid_browser_last_error' })
+    variables.add({ name: 'Raid Browser Source Summary', variableId: 'raid_browser_source_summary' })
+    variables.add({ name: 'Raid Pending', variableId: 'raid_pending' })
+    variables.add({ name: 'Raid Pending Target Login', variableId: 'raid_pending_target_login' })
+    variables.add({ name: 'Raid Pending Target Display Name', variableId: 'raid_pending_target_display_name' })
+    variables.add({ name: 'Raid Pending Created At', variableId: 'raid_pending_created_at' })
+    variables.add({ name: 'Raid Pending Expires At', variableId: 'raid_pending_expires_at' })
+    variables.add({ name: 'Raid Pending Seconds Remaining', variableId: 'raid_pending_seconds_remaining' })
+    variables.add({ name: 'Raid Error Active', variableId: 'raid_error_active' })
+    variables.add({ name: 'Raid Error Operation', variableId: 'raid_error_operation' })
+    variables.add({ name: 'Raid Error HTTP Status', variableId: 'raid_error_status' })
+    variables.add({ name: 'Raid Error Message', variableId: 'raid_error_message' })
+    variables.add({ name: 'Raid Error Occurred At', variableId: 'raid_error_occurred_at' })
 
     variables.add({ name: `Selected Channel`, variableId: `selected` })
     variables.add({ name: `Selected Channel Live`, variableId: `selected_live` })
@@ -117,6 +154,52 @@ export class Variables {
     newVariables.ratelimit_limit = this.instance.API.ratelimitLimit
     newVariables.ratelimit_remaining = this.instance.API.ratelimitRemaining
     newVariables.requests_per_min = this.instance.API.requestsPerMin
+
+    const raidCandidate = this.instance.raidCandidates[this.instance.raidCandidateIndex]
+    newVariables.raid_candidate_count = this.instance.raidCandidates.length
+    newVariables.raid_candidate_index = raidCandidate ? this.instance.raidCandidateIndex + 1 : 0
+    newVariables.raid_candidate_login = raidCandidate?.login ?? ''
+    newVariables.raid_candidate_display_name = raidCandidate?.displayName ?? ''
+    newVariables.raid_candidate_user_id = raidCandidate?.userId ?? ''
+    newVariables.raid_candidate_viewers = raidCandidate?.viewers ?? 0
+    newVariables.raid_candidate_viewers_formatted = formatNumber(raidCandidate?.viewers ?? 0)
+    newVariables.raid_candidate_category = raidCandidate?.category ?? ''
+    newVariables.raid_candidate_title = raidCandidate?.title ?? ''
+    newVariables.raid_candidate_tags = raidCandidate?.tags.join(', ') ?? ''
+    newVariables.raid_candidate_tags_json = JSON.stringify(raidCandidate?.tags ?? [])
+    newVariables.raid_candidate_language = raidCandidate?.language ?? ''
+    newVariables.raid_candidate_started_at = raidCandidate?.startedAt ?? ''
+    const raidCandidateStartedAt = Date.parse(raidCandidate?.startedAt ?? '')
+    newVariables.raid_candidate_uptime = Number.isFinite(raidCandidateStartedAt) ? formatTime(Date.now() - raidCandidateStartedAt, 'ms', 'hh:mm:ss') : ''
+    newVariables.raid_candidate_thumbnail_url = raidCandidate?.thumbnailUrl ?? ''
+    newVariables.raid_candidate_source_type = raidCandidate?.sourceType ?? ''
+    newVariables.raid_candidate_source_name = raidCandidate?.sourceName ?? ''
+    newVariables.raid_candidate_available = Boolean(raidCandidate).toString()
+    /*
+     * RaidBrowser replaces the candidate array whenever its contents change.
+     * Array identity therefore gives this one-second update path a cheap cache
+     * key while still publishing fresh JSON immediately after every refresh.
+     */
+    if (this.raidCandidatesJsonSource !== this.instance.raidCandidates) {
+      this.raidCandidatesJsonSource = this.instance.raidCandidates
+      this.raidCandidatesJson = JSON.stringify(this.instance.raidCandidates)
+    }
+    newVariables.raid_candidates_json = this.raidCandidatesJson
+    newVariables.raid_browser_status = this.instance.raidBrowser.diagnostics.status
+    newVariables.raid_browser_last_refresh = this.instance.raidBrowser.diagnostics.lastRefreshAt
+    newVariables.raid_browser_last_error = this.instance.raidBrowser.diagnostics.lastError
+    newVariables.raid_browser_source_summary = this.instance.raidBrowser.diagnostics.sourceSummary
+    newVariables.raid_pending = Boolean(this.instance.raidState.pending).toString()
+    newVariables.raid_pending_target_login = this.instance.raidState.pending?.targetLogin ?? ''
+    newVariables.raid_pending_target_display_name = this.instance.raidState.pending?.targetDisplayName ?? ''
+    newVariables.raid_pending_created_at = this.instance.raidState.pending?.createdAt ?? ''
+    newVariables.raid_pending_expires_at = this.instance.raidState.pending?.expiresAt ?? ''
+    newVariables.raid_pending_seconds_remaining = this.instance.raidState.remainingSeconds()
+    newVariables.raid_error_active = this.instance.raidState.errorActive().toString()
+    newVariables.raid_error_operation = this.instance.raidState.lastError?.operation ?? ''
+    newVariables.raid_error_status = this.instance.raidState.lastError?.statusCode ?? ''
+    newVariables.raid_error_message = this.instance.raidState.lastError?.message ?? ''
+    newVariables.raid_error_occurred_at = this.instance.raidState.lastError?.occurredAt ?? ''
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
     newVariables[`selected`] = selectedChannel ? selectedChannel.displayName : ''

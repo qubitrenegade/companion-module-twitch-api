@@ -12,6 +12,11 @@ import { combineRgb } from '@companion-module/base'
 export interface TwitchFeedbacks {
   channelStatus: TwitchFeedback<ChannelStatusCallback>
   chatStatus: TwitchFeedback<ChatStatusCallback>
+  raidCandidateAvailable: TwitchFeedback<RaidCandidateAvailableCallback>
+  raidBrowserHasCandidates: TwitchFeedback<RaidBrowserHasCandidatesCallback>
+  raidCandidateSource: TwitchFeedback<RaidCandidateSourceCallback>
+  raidPending: TwitchFeedback<RaidPendingCallback>
+  raidError: TwitchFeedback<RaidErrorCallback>
 
   // Index signature
   [key: string]: TwitchFeedback<any>
@@ -33,6 +38,33 @@ interface ChatStatusCallback {
     mode: ChatModes
     value: string
   }>
+}
+
+interface RaidCandidateAvailableCallback {
+  type: 'raidCandidateAvailable'
+  options: Record<string, never>
+}
+
+interface RaidBrowserHasCandidatesCallback {
+  type: 'raidBrowserHasCandidates'
+  options: Record<string, never>
+}
+
+interface RaidCandidateSourceCallback {
+  type: 'raidCandidateSource'
+  options: Readonly<{
+    sourceName: string
+  }>
+}
+
+interface RaidPendingCallback {
+  type: 'raidPending'
+  options: Record<string, never>
+}
+
+interface RaidErrorCallback {
+  type: 'raidError'
+  options: Record<string, never>
 }
 
 // Callback type for Presets
@@ -141,6 +173,76 @@ export function getFeedbacks(instance: TwitchInstance): TwitchFeedbacks {
         }
         return false
       },
+    },
+
+    raidCandidateAvailable: {
+      type: 'boolean',
+      name: 'Raid Candidate Available',
+      description: 'Indicates whether the raid browser currently has a selected candidate',
+      options: [],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (): boolean => instance.raidCandidates[instance.raidCandidateIndex] !== undefined,
+    },
+
+    raidBrowserHasCandidates: {
+      type: 'boolean',
+      name: 'Raid Browser Has Candidates',
+      description: 'Indicates whether the raid browser candidate list is non-empty',
+      options: [],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (): boolean => instance.raidCandidates.length > 0,
+    },
+
+    raidCandidateSource: {
+      type: 'boolean',
+      name: 'Selected Raid Candidate Source',
+      description: 'Indicates whether the selected raid candidate belongs to a specified team or source',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Source Name',
+          id: 'sourceName',
+          default: '',
+        },
+      ],
+      style: {
+        color: combineRgb(0, 0, 0),
+        bgcolor: combineRgb(0, 255, 0),
+      },
+      callback: (feedback): boolean => {
+        const sourceName = instance.raidCandidates[instance.raidCandidateIndex]?.sourceName
+        return sourceName !== undefined && sourceName.toLowerCase() === feedback.options.sourceName.trim().toLowerCase()
+      },
+    },
+
+    raidPending: {
+      type: 'boolean',
+      name: 'Raid Pending',
+      description: 'Indicates whether this module has started a raid countdown that may still be canceled',
+      options: [],
+      style: {
+        color: combineRgb(255, 255, 255),
+        bgcolor: combineRgb(180, 0, 0),
+      },
+      callback: (): boolean => instance.raidState.pending !== null,
+    },
+
+    raidError: {
+      type: 'boolean',
+      name: 'Raid Error Active',
+      description: 'Indicates whether a recent raid start or cancel error should be shown to the operator',
+      options: [],
+      style: {
+        color: combineRgb(255, 255, 255),
+        bgcolor: combineRgb(255, 0, 0),
+      },
+      callback: (): boolean => instance.raidState.errorActive(),
     },
   }
 }
