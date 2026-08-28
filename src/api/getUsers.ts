@@ -5,6 +5,7 @@ type GetUsersOptions = {
   type: 'login' | 'id'
   channels: string | string[]
   throwOnError?: boolean
+  signal?: AbortSignal
 }
 
 type GetUsersSuccess = {
@@ -40,6 +41,7 @@ export const getUsers = async (instance: TwitchInstance, options: GetUsersOption
   const parameters = new URLSearchParams()
   for (const channel of channels) parameters.append(options.type, channel)
   const requestOptions = instance.API.defaultOptions()
+  requestOptions.signal = options.signal
 
   let response: Response
   try {

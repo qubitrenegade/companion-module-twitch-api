@@ -50,7 +50,17 @@ const response = (body: unknown, status = 200, headers: Record<string, string> =
     ok: status >= 200 && status < 300,
     headers: new Headers(headers),
     json: async () => body,
-  }) as Response
+  }) as unknown as Response
+
+const nonJsonResponse = (status: number): Response =>
+  ({
+    status,
+    ok: status >= 200 && status < 300,
+    headers: new Headers(),
+    json: async () => {
+      throw new SyntaxError('Unexpected token')
+    },
+  }) as unknown as Response
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -233,6 +243,19 @@ describe('RaidBrowser Twitch loading', () => {
       status: 'error',
       lastError: 'broken: team was not found or returned an invalid response',
       sourceSummary: 'broken: failed',
+    })
+  })
+
+  test('preserves HTTP status when a browser source returns a non-JSON error', async () => {
+    const { browser } = makeInstance()
+    fetchMock.mockResolvedValueOnce(nonJsonResponse(502))
+
+    await browser.refresh()
+
+    expect(browser.diagnostics).toMatchObject({
+      status: 'error',
+      lastError: 'Followed: Twitch returned HTTP 502',
+      sourceSummary: 'Followed: failed',
     })
   })
 

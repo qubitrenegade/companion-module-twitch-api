@@ -2,6 +2,7 @@ import type TwitchInstance from './index'
 
 export const RAID_PENDING_DURATION_MS = 90_000
 export const RAID_ERROR_DISPLAY_DURATION_MS = 15_000
+export const RAID_OPERATION_TIMEOUT_MS = 15_000
 
 export interface PendingRaid {
   targetLogin: string
@@ -30,6 +31,7 @@ export class RaidState {
   private errorTimer: ReturnType<typeof setTimeout> | null = null
   private operationGeneration = 0
   private operationTail: Promise<void> = Promise.resolve()
+  private activeOperationController: AbortController | null = null
   private destroyed = false
   public pending: PendingRaid | null = null
   public lastError: RaidOperationError | null = null
@@ -101,6 +103,8 @@ export class RaidState {
    */
   public authenticationInvalidated(): void {
     this.operationGeneration++
+    this.activeOperationController?.abort(new Error('Raid operation superseded by an authentication change'))
+    this.activeOperationController = null
     this.operationTail = Promise.resolve()
     this.clearTimer()
     this.clearErrorTimer()
@@ -112,6 +116,8 @@ export class RaidState {
   public destroy(): void {
     this.destroyed = true
     this.operationGeneration++
+    this.activeOperationController?.abort(new Error('Raid operation stopped because the instance was destroyed'))
+    this.activeOperationController = null
     this.operationTail = Promise.resolve()
     this.clearTimer()
     this.clearErrorTimer()
@@ -133,7 +139,13 @@ export class RaidState {
    * countdown. Running them in operator order prevents a slower earlier HTTP
    * response from reversing the state established by a later command.
    */
-  public async runOperation<T>(operation: (operationIsCurrent: () => boolean) => Promise<T>): Promise<T> {
+  public async runOperation<T>(operation: (operationIsCurrent: () => boolean, signal: AbortSignal) => Promise<T>, supersedeActive = false): Promise<T> {
+    if (supersedeActive) {
+      this.operationGeneration++
+      this.activeOperationController?.abort(new Error('Raid operation superseded by a newer command'))
+      this.activeOperationController = null
+    }
+
     const operationGeneration = this.operationGeneration
     const previousOperation = this.operationTail
     let releaseOperation!: () => void
@@ -142,9 +154,15 @@ export class RaidState {
     })
 
     await previousOperation
+    const controller = new AbortController()
+    const operationIsCurrent = (): boolean => !this.destroyed && operationGeneration === this.operationGeneration
+    if (operationIsCurrent()) this.activeOperationController = controller
+    const timeout = setTimeout(() => controller.abort(new Error('Twitch raid operation timed out')), RAID_OPERATION_TIMEOUT_MS)
     try {
-      return await operation(() => !this.destroyed && operationGeneration === this.operationGeneration)
+      return await operation(operationIsCurrent, controller.signal)
     } finally {
+      clearTimeout(timeout)
+      if (this.activeOperationController === controller) this.activeOperationController = null
       releaseOperation()
     }
   }

@@ -2,7 +2,7 @@ import { cancelRaid } from '../src/api/cancelRaid'
 import { getUsers, GetUsersError } from '../src/api/getUsers'
 import { startARaid } from '../src/api/startARaid'
 import type TwitchInstance from '../src/index'
-import { RaidState } from '../src/raidState'
+import { RAID_OPERATION_TIMEOUT_MS, RaidState } from '../src/raidState'
 
 const response = (body: unknown, status: number): Response =>
   ({
@@ -324,7 +324,7 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
-  test('sends a later cancellation only after an earlier start completes', async () => {
+  test('supersedes an earlier start before sending a later cancellation', async () => {
     const instance = makeInstance()
     const startResponse = deferredJsonResponse(200)
     fetchMock.mockResolvedValueOnce(startResponse.response).mockResolvedValueOnce(response(undefined, 204))
@@ -338,11 +338,54 @@ describe('raid API state transitions', () => {
 
     startResponse.resolveBody({ data: [{ created_at: new Date().toISOString(), is_mature: false }] })
 
-    await expect(startOperation).resolves.toBe(true)
+    await expect(startOperation).resolves.toBe(false)
     await expect(cancelOperation).resolves.toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(instance.raidState.pending).toBeNull()
     instance.raidState.destroy()
+  })
+
+  test('aborts a stalled start so a later cancellation can proceed', async () => {
+    const instance = makeInstance()
+    fetchMock
+      .mockImplementationOnce((_url, options) => {
+        const signal = options?.signal
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      })
+      .mockResolvedValueOnce(response(undefined, 204))
+
+    const startOperation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 12; turn++) await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const cancelOperation = cancelRaid(instance)
+
+    await expect(startOperation).resolves.toBe(false)
+    await expect(cancelOperation).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    instance.raidState.destroy()
+  })
+
+  test('times out a stalled raid operation with operator feedback', async () => {
+    jest.useFakeTimers()
+    const instance = makeInstance()
+    fetchMock.mockImplementationOnce((_url, options) => {
+      const signal = options?.signal
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+
+    const operation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 12; turn++) await Promise.resolve()
+    await jest.advanceTimersByTimeAsync(RAID_OPERATION_TIMEOUT_MS)
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.lastError).toMatchObject({ message: 'Twitch raid operation timed out' })
+    instance.raidState.destroy()
+    jest.useRealTimers()
   })
 
   test('sends a later start only after an earlier cancellation completes', async () => {

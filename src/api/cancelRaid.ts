@@ -2,32 +2,32 @@ import type TwitchInstance from '../index'
 import { type APIError, parseJsonResponse } from '../api'
 
 export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => {
-  instance.raidState.clearError()
-
-  if (!instance.auth.valid || !instance.auth.userID) {
-    const message = 'Unable to cancel a raid because a valid broadcaster authentication is required.'
-    instance.raidState.markError('cancel', message)
-    instance.log('warn', message)
-    return false
-  }
-
-  if (!instance.auth.scopes.includes('channel:manage:raids')) {
-    const message = 'Unable to cancel a raid. Enable the Raids permission and authenticate again.'
-    instance.raidState.markError('cancel', message)
-    instance.log('warn', message)
-    return false
-  }
-
   const broadcasterID = instance.auth.userID
   const identityGeneration = instance.auth.identityGeneration
   const authenticationIsCurrent = (): boolean => instance.auth.valid && instance.auth.identityGeneration === identityGeneration && instance.auth.userID === broadcasterID
 
-  return instance.raidState.runOperation(async (raidOperationIsCurrent) => {
+  return instance.raidState.runOperation(async (raidOperationIsCurrent, signal) => {
     const operationIsCurrent = (): boolean => authenticationIsCurrent() && raidOperationIsCurrent()
-    if (!operationIsCurrent()) return false
+    if (!raidOperationIsCurrent()) return false
+    instance.raidState.clearError()
+
+    if (!operationIsCurrent() || !broadcasterID) {
+      const message = 'Unable to cancel a raid because a valid broadcaster authentication is required.'
+      instance.raidState.markError('cancel', message)
+      instance.log('warn', message)
+      return false
+    }
+
+    if (!instance.auth.scopes.includes('channel:manage:raids')) {
+      const message = 'Unable to cancel a raid. Enable the Raids permission and authenticate again.'
+      instance.raidState.markError('cancel', message)
+      instance.log('warn', message)
+      return false
+    }
 
     const requestOptions = instance.API.defaultOptions()
     requestOptions.method = 'DELETE'
+    requestOptions.signal = signal
 
     try {
       const response = await fetch(`https://api.twitch.tv/helix/raids?broadcaster_id=${broadcasterID}`, requestOptions)
@@ -62,5 +62,5 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
       instance.log('warn', `Failed to Cancel Raid: ${message}`)
       return false
     }
-  })
+  }, true)
 }

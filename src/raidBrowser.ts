@@ -468,7 +468,12 @@ export class RaidBrowser {
       return this.getHelix<T>(path, signal, false)
     }
 
-    const body = (await response.json()) as HelixResponse<T> | { message?: string }
+    let body: HelixResponse<T> | { message?: string }
+    try {
+      body = (await response.json()) as HelixResponse<T> | { message?: string }
+    } catch {
+      throw new Error(response.ok ? 'Twitch returned an invalid response' : `Twitch returned HTTP ${response.status}`)
+    }
     if (!response.ok || !('data' in body) || !Array.isArray(body.data)) {
       throw new Error('message' in body && body.message ? body.message : `Twitch returned HTTP ${response.status}`)
     }
