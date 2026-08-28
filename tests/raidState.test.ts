@@ -1,4 +1,5 @@
 import { cancelRaid } from '../src/api/cancelRaid'
+import { getUsers, GetUsersError } from '../src/api/getUsers'
 import { startARaid } from '../src/api/startARaid'
 import type TwitchInstance from '../src/index'
 import { RaidState } from '../src/raidState'
@@ -135,6 +136,27 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('rejects an invalid target login before looking it up', async () => {
+    const instance = makeInstance()
+
+    await expect(startARaid(instance, 'missing&login=other')).resolves.toBe(false)
+
+    expect(instance.API.getUsers).not.toHaveBeenCalled()
+    expect(instance.raidState.lastError).toMatchObject({ statusCode: null, message: 'Unable to start a raid because the target login is invalid.' })
+    instance.raidState.destroy()
+  })
+
+  test('preserves target lookup failures for raid diagnostics', async () => {
+    const instance = makeInstance()
+    jest.mocked(instance.API.getUsers).mockRejectedValueOnce(new GetUsersError('Too Many Requests', 429))
+
+    await expect(startARaid(instance, 'target')).resolves.toBe(false)
+
+    expect(instance.raidState.lastError).toMatchObject({ statusCode: 429, message: 'Too Many Requests' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    instance.raidState.destroy()
+  })
+
   test('clears pending state after Twitch accepts a cancellation', async () => {
     const instance = makeInstance()
     instance.raidState.markPending('target', 'Target', new Date().toISOString())
@@ -156,6 +178,25 @@ describe('raid API state transitions', () => {
 
     expect(instance.raidState.pending).toBeNull()
     expect(instance.raidState.lastError).toMatchObject({ statusCode: 404, message: 'Not Found' })
+    instance.raidState.destroy()
+  })
+})
+
+describe('user lookup request construction', () => {
+  const fetchMock = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    global.fetch = fetchMock
+  })
+
+  test('encodes each login as a separate query parameter', async () => {
+    const instance = makeInstance()
+    fetchMock.mockResolvedValueOnce(response({ data: [] }, 200))
+
+    await getUsers(instance, { type: 'login', channels: ['first', 'missing&login=other'] })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.twitch.tv/helix/users?login=first&login=missing%26login%3Dother')
     instance.raidState.destroy()
   })
 })

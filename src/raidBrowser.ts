@@ -220,18 +220,18 @@ export class RaidBrowser {
     if (refreshImmediately) void this.refresh()
   }
 
-  public async refresh(): Promise<void> {
+  public async refresh(): Promise<boolean> {
     if (!this.instance.config.raidBrowserEnabled) {
       this.setDiagnostics({ status: 'disabled', lastError: '', sourceSummary: '' })
       this.publishState()
       this.instance.log('debug', 'Raid browser refresh skipped because the browser is disabled')
-      return
+      return false
     }
     if (!this.instance.auth.valid || !this.instance.auth.userID) {
       this.setDiagnostics({ status: 'waiting_for_authentication', lastError: 'A valid Twitch authentication is required' })
       this.publishState()
       this.instance.log('warn', 'Raid browser refresh requires a valid Twitch authentication')
-      return
+      return false
     }
 
     /*
@@ -249,7 +249,7 @@ export class RaidBrowser {
 
     try {
       const sourceResults = await this.loadCandidateGroups(controller.signal)
-      if (generation !== this.refreshGeneration || controller.signal.aborted) return
+      if (generation !== this.refreshGeneration || controller.signal.aborted) return false
 
       const candidates = mergeRaidCandidateGroups(
         sourceResults.map((result) => result.candidates),
@@ -269,6 +269,7 @@ export class RaidBrowser {
 
       const message = `Raid browser refresh complete: ${candidates.length} candidates (${sourceSummary})`
       this.instance.log(candidates.length > 0 ? 'info' : 'warn', message)
+      return true
     } catch (error) {
       if (!controller.signal.aborted) {
         const message = error instanceof Error ? error.message : String(error)
@@ -276,6 +277,7 @@ export class RaidBrowser {
         this.publishState()
         this.instance.log('warn', `Raid browser refresh failed: ${message}`)
       }
+      return false
     } finally {
       if (generation === this.refreshGeneration) this.refreshController = null
     }
@@ -300,7 +302,8 @@ export class RaidBrowser {
   }
 
   public async refreshAndSelectDefault(suggestionText = ''): Promise<void> {
-    await this.refresh()
+    const refreshed = await this.refresh()
+    if (!refreshed) return
     if (this.instance.raidCandidates.length === 0) return
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)

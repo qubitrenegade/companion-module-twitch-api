@@ -251,6 +251,26 @@ describe('RaidBrowser Twitch loading', () => {
     expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['new'])
   })
 
+  test('does not apply default selection after its refresh is superseded', async () => {
+    const { instance, browser } = makeInstance()
+    instance.raidCandidates = [candidate('existing-1'), candidate('existing-2')]
+    instance.raidCandidateIndex = 1
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    fetchMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+
+    const olderDefaultRefresh = browser.refreshAndSelectDefault()
+    const newerRefresh = browser.refresh()
+    first.resolve(response({ data: [stream('old', 10)], pagination: {} }))
+    await olderDefaultRefresh
+
+    expect(instance.raidCandidateIndex).toBe(1)
+
+    second.resolve(response({ data: [stream('new', 20)], pagination: {} }))
+    await newerRefresh
+    expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['new'])
+  })
+
   test('publishes and logs wrapped encoder selection changes', () => {
     const { instance, browser } = makeInstance()
     instance.raidCandidates = [candidate('1'), candidate('2')]

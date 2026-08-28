@@ -27,7 +27,7 @@ The repository provides page-only Companion 5 examples for an [Elgato Stream Dec
 
 Each example assigns the start or cancel action to `1/0/0` and previous and next selection to `1/1/0` and `1/1/1`. The Stream Deck + uses contiguous LCD and encoder columns on rows `2` and `3`. The Stream Deck + XL uses rows `4` and `5` at its verified sparse columns `3`, `5`, `6`, and `8`. The rightmost assigned encoder browses candidates. Every assigned encoder push cancels a pending raid, while the browser-encoder push refreshes the default candidate when no raid is pending.
 
-Pretty, reviewable sources live in [`examples/`](./examples/). Run `yarn build:examples` after editing them to regenerate the compressed files under `companion/assets/` for direct Companion import.
+The files under [`companion/assets/`](./companion/assets/) are plain, formatted JSON stored with Companion's `.companionconfig` extension. Each file is both directly importable and reviewable in a normal source diff, so there is no generated or compressed duplicate to keep synchronized.
 
 # Patch Notes
 

@@ -258,14 +258,15 @@ class TwitchInstance extends InstanceBase<Config> {
         return channelData
       })
 
+    // The sorted channel list keeps dropdowns stable, but the first configured
+    // channel is the operator's intentional default. Choose it before sorting
+    // so presentation order cannot change startup behavior.
+    const configuredUsernames = this.channels.map((channel) => channel.username)
+    this.selectedChannel = selectConfiguredChannel(this.selectedChannel, configuredUsernames)
+
     this.channels.sort((a, b) => {
       return a.username < b.username ? -1 : 1
     })
-
-    this.selectedChannel = selectConfiguredChannel(
-      this.selectedChannel,
-      this.channels.map((channel) => channel.username),
-    )
 
     await this.API.updateUsers(this)
 

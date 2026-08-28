@@ -3,7 +3,6 @@
 	"version": "4.3.0",
 	"main": "dist/index.js",
 	"scripts": {
-		"build:examples": "node scripts/build-example-configs.mjs",
 		"dev": "yarn build:watch",
 		"build": "rimraf dist && yarn build:main",
 		"build:main": "tsc -p tsconfig.build.json",

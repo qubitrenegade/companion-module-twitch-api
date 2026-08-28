@@ -55,9 +55,9 @@ export const updateChatSettings = async (instance: TwitchInstance, selection: st
 
   if (mode === 'follower_mode_duration') {
     const numericState = Number(state)
-    if (state === '0' || state === '') {
+    if (numericState === 0) {
       requestOptions.body = JSON.stringify({ follower_mode: false })
-    } else if (state === channel.chatModes.followersLength.toString()) {
+    } else if (numericState === channel.chatModes.followersLength) {
       requestOptions.body = JSON.stringify({
         follower_mode: !channel.chatModes.followers,
       })

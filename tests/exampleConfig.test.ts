@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { gunzipSync } from 'node:zlib'
 
 interface ExampleControl {
   steps: Record<
@@ -61,14 +60,8 @@ function collectDefinitionIds(value: unknown): string[] {
 
 describe.each(layouts)('$name example config', (layout) => {
   const assetPath = join(__dirname, '..', 'companion', 'assets', `${layout.name}.companionconfig`)
-  const sourcePath = join(__dirname, '..', 'examples', `${layout.name}.json`)
-  const config = JSON.parse(gunzipSync(readFileSync(assetPath)).toString('utf8')) as ExampleConfig
-  const reviewableSource = JSON.parse(readFileSync(sourcePath, 'utf8')) as ExampleConfig
+  const config = JSON.parse(readFileSync(assetPath, 'utf8')) as ExampleConfig
   const serialized = JSON.stringify(config)
-
-  test('matches its reviewable JSON source', () => {
-    expect(config).toEqual(reviewableSource)
-  })
 
   test('is a sanitized Companion 5 page export', () => {
     expect(config).toMatchObject({ version: 12, type: 'page' })

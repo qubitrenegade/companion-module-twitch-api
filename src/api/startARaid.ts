@@ -1,5 +1,6 @@
 import type TwitchInstance from '../index'
 import { type APIError } from '../api'
+import { GetUsersError } from './getUsers'
 
 type startARaidSuccess = {
   data: {
@@ -25,10 +26,27 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
     return false
   }
 
-  const target = await instance.API.getUsers(instance, { type: 'login', channels: targetUsername })
+  const targetLogin = targetUsername.trim().replace(/^@/, '')
+  if (!/^[a-zA-Z0-9_]{1,25}$/.test(targetLogin)) {
+    const message = 'Unable to start a raid because the target login is invalid.'
+    instance.raidState.markError('start', message)
+    instance.log('warn', message)
+    return false
+  }
+
+  let target: Awaited<ReturnType<typeof instance.API.getUsers>>
+  try {
+    target = await instance.API.getUsers(instance, { type: 'login', channels: targetLogin, throwOnError: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const statusCode = error instanceof GetUsersError ? error.statusCode : null
+    instance.raidState.markError('start', message, statusCode)
+    instance.log('warn', `Failed to resolve raid target ${targetLogin}: ${message}`)
+    return false
+  }
 
   if (!target[0]?.id) {
-    const message = `Unable to raid ${targetUsername}. User not found.`
+    const message = `Unable to raid ${targetLogin}. User not found.`
     instance.raidState.markError('start', message)
     instance.log('warn', message)
     return false
