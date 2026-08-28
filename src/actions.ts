@@ -578,8 +578,8 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           useVariables: true,
         },
       ],
-      callback: async (action, context) => {
-        const parsedStep = Number.parseInt(await context.parseVariablesInString(action.options.step), 10)
+      callback: async (action) => {
+        const parsedStep = Number.parseInt(await instance.parseVariablesInString(action.options.step), 10)
         instance.raidBrowser.select(Number.isFinite(parsedStep) ? Math.abs(parsedStep) : 1)
       },
     },
@@ -595,8 +595,8 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           useVariables: true,
         },
       ],
-      callback: async (action, context) => {
-        const parsedStep = Number.parseInt(await context.parseVariablesInString(action.options.step), 10)
+      callback: async (action) => {
+        const parsedStep = Number.parseInt(await instance.parseVariablesInString(action.options.step), 10)
         instance.raidBrowser.select(-(Number.isFinite(parsedStep) ? Math.abs(parsedStep) : 1))
       },
     },
