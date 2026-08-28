@@ -140,7 +140,14 @@ export class Auth {
           this.pollTokenCheck = setInterval(this.validateTokens, 1000 * 60 * 10)
 
           this.instance.saveConfig({ ...this.instance.config, accessToken: this.accessToken, refreshToken: this.refreshToken })
-          this.startup()
+
+          // A device-token response identifies the granted scopes but not the
+          // broadcaster. Clear any identity from an earlier authorization and
+          // let token validation populate userID before shared startup begins.
+          this.valid = false
+          this.login = ''
+          this.userID = ''
+          this.validateTokens()
         } else {
           if (body.message === 'authorization_pending') {
             this.instance.log('debug', `Authorization still pending`)
