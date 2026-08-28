@@ -25,7 +25,30 @@ interface ExampleConfig {
   instances: Record<string, Record<string, unknown>>
 }
 
-const examplePath = join(__dirname, '..', 'companion', 'assets', 'streamdeck-plus-raid-browser.companionconfig')
+interface ExampleLayout {
+  name: string
+  coordinates: string[]
+  lcdRow: string
+  encoderRow: string
+  encoderColumns: string[]
+}
+
+const layouts: ExampleLayout[] = [
+  {
+    name: 'streamdeck-plus-raid-browser',
+    coordinates: ['0/0', '1/0', '1/1', '2/0', '2/1', '2/2', '2/3', '3/0', '3/1', '3/2', '3/3'],
+    lcdRow: '2',
+    encoderRow: '3',
+    encoderColumns: ['0', '1', '2', '3'],
+  },
+  {
+    name: 'streamdeck-plus-xl-raid-browser',
+    coordinates: ['0/0', '1/0', '1/1', '4/3', '4/5', '4/6', '4/8', '5/3', '5/5', '5/6', '5/8'],
+    lcdRow: '4',
+    encoderRow: '5',
+    encoderColumns: ['3', '5', '6', '8'],
+  },
+]
 
 function collectDefinitionIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(collectDefinitionIds)
@@ -36,9 +59,16 @@ function collectDefinitionIds(value: unknown): string[] {
   return [...ownId, ...Object.values(record).flatMap(collectDefinitionIds)]
 }
 
-describe('Stream Deck + example config', () => {
-  const config = JSON.parse(gunzipSync(readFileSync(examplePath)).toString('utf8')) as ExampleConfig
+describe.each(layouts)('$name example config', (layout) => {
+  const assetPath = join(__dirname, '..', 'companion', 'assets', `${layout.name}.companionconfig`)
+  const sourcePath = join(__dirname, '..', 'examples', `${layout.name}.json`)
+  const config = JSON.parse(gunzipSync(readFileSync(assetPath)).toString('utf8')) as ExampleConfig
+  const reviewableSource = JSON.parse(readFileSync(sourcePath, 'utf8')) as ExampleConfig
   const serialized = JSON.stringify(config)
+
+  test('matches its reviewable JSON source', () => {
+    expect(config).toEqual(reviewableSource)
+  })
 
   test('is a sanitized Companion 5 page export', () => {
     expect(config).toMatchObject({ version: 12, type: 'page' })
@@ -54,10 +84,9 @@ describe('Stream Deck + example config', () => {
     }
   })
 
-  test('uses the intended Stream Deck + coordinates', () => {
+  test('uses the intended coordinates', () => {
     const coordinates = Object.entries(config.page.controls).flatMap(([row, columns]) => Object.keys(columns).map((column) => `${row}/${column}`))
-
-    expect(coordinates).toEqual(['0/0', '1/0', '1/1', '2/0', '2/1', '2/2', '2/3', '3/0', '3/1', '3/2', '3/3'])
+    expect(coordinates).toEqual(layout.coordinates)
   })
 
   test('provides dedicated raid and browse buttons', () => {
@@ -66,26 +95,28 @@ describe('Stream Deck + example config', () => {
     expect(collectDefinitionIds(config.page.controls['1']['1'])).toContain('raidBrowserNext')
   })
 
-  test('cancels from every encoder and browses from the rightmost encoder', () => {
-    for (const column of ['0', '1', '2', '3']) {
-      const down = config.page.controls['3'][column].steps['0'].action_sets.down
+  test('cancels from every assigned encoder and browses from the rightmost encoder', () => {
+    for (const column of layout.encoderColumns) {
+      const down = config.page.controls[layout.encoderRow][column].steps['0'].action_sets.down
       expect(collectDefinitionIds(down)).toContain('raidCancel')
     }
 
-    const rightmostActions = config.page.controls['3']['3'].steps['0'].action_sets
+    const rightmostColumn = layout.encoderColumns.at(-1) as string
+    const rightmostActions = config.page.controls[layout.encoderRow][rightmostColumn].steps['0'].action_sets
     expect(collectDefinitionIds(rightmostActions.rotate_left)).toContain('raidBrowserPrevious')
     expect(collectDefinitionIds(rightmostActions.rotate_right)).toContain('raidBrowserNext')
     expect(collectDefinitionIds(rightmostActions.down)).toContain('raidBrowserRefreshDefault')
   })
 
-  test('shows candidate metadata and splits raid errors across LCD segments', () => {
-    const lcdContent = JSON.stringify(config.page.controls['2'])
+  test('shows metadata and splits raid errors at a word boundary', () => {
+    const lcdContent = JSON.stringify(config.page.controls[layout.lcdRow])
     expect(lcdContent).toContain('raid_candidate_display_name')
     expect(lcdContent).toContain('raid_candidate_viewers_formatted')
     expect(lcdContent).toContain('raid_candidate_tags')
     expect(lcdContent).toContain('raid_candidate_title')
     expect(lcdContent).toContain('raid_error_message')
-    expect(lcdContent).toContain('substr(message, 0, 52)')
-    expect(lcdContent).toContain('substr(message, 52, 112)')
+    expect(lcdContent).toContain("lastIndexOf(message, ' ', 52)")
+    expect(lcdContent).toContain('substr(message, 0, splitAt)')
+    expect(lcdContent).toContain('trim(substr(message, splitAt, 112))')
   })
 })

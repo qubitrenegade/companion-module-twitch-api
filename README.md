@@ -21,11 +21,13 @@ yarn companion-module-build
 
 Unit tests mock Twitch responses and must not access Twitch. The Node workflow runs the unit suite in addition to the TypeScript and Companion package builds.
 
-## Example layout
+## Example layouts
 
-[`companion/assets/streamdeck-plus-raid-browser.companionconfig`](./companion/assets/streamdeck-plus-raid-browser.companionconfig) is a page-only Companion 5 example for an Elgato Stream Deck + placed at the page grid origin. It contains no connection configuration, authentication data, channel names, team names, surface identifiers, or custom-variable dependencies. During import, map its placeholder `Twitch` connection to an authenticated Twitch API connection.
+The repository provides page-only Companion 5 examples for an [Elgato Stream Deck +](./companion/assets/streamdeck-plus-raid-browser.companionconfig) and a [Stream Deck + XL](./companion/assets/streamdeck-plus-xl-raid-browser.companionconfig). Both contain a minimal placeholder `Twitch` connection and no connection configuration, authentication data, channel names, team names, surface identifiers, or custom-variable dependencies. During import, map `Twitch` to an authenticated Twitch API connection.
 
-The example assigns the start or cancel action to `1/0/0`, previous and next selection to `1/1/0` and `1/1/1`, four raid-information segments to row `2`, and the four encoders to row `3`. The rightmost encoder browses candidates. Every encoder push cancels a pending raid, while a rightmost-encoder push refreshes the default candidate when no raid is pending.
+Each example assigns the start or cancel action to `1/0/0` and previous and next selection to `1/1/0` and `1/1/1`. The Stream Deck + uses contiguous LCD and encoder columns on rows `2` and `3`. The Stream Deck + XL uses rows `4` and `5` at its verified sparse columns `3`, `5`, `6`, and `8`. The rightmost assigned encoder browses candidates. Every assigned encoder push cancels a pending raid, while the browser-encoder push refreshes the default candidate when no raid is pending.
+
+Pretty, reviewable sources live in [`examples/`](./examples/). Run `yarn build:examples` after editing them to regenerate the compressed files under `companion/assets/` for direct Companion import.
 
 # Patch Notes
 
