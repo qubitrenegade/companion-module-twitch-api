@@ -38,6 +38,7 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
     }
 
     const body = await parseJsonResponse<APIError>(response)
+    if (!authenticationIsCurrent()) return false
 
     /*
      * A 404 means Twitch no longer has a cancellable countdown. Clearing the

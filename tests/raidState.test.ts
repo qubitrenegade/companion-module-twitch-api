@@ -30,6 +30,21 @@ const deferred = <T>() => {
   return { promise, resolve }
 }
 
+const deferredJsonResponse = (status: number) => {
+  const body = deferred<unknown>()
+  const json = jest.fn(() => body.promise)
+  return {
+    response: {
+      status,
+      ok: status >= 200 && status < 300,
+      headers: new Headers(),
+      json,
+    } as unknown as Response,
+    json,
+    resolveBody: body.resolve,
+  }
+}
+
 const makeInstance = () => {
   const instance = {
     auth: {
@@ -173,6 +188,25 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('discards a parsed start body after the authenticated broadcaster changes', async () => {
+    const instance = makeInstance()
+    const oldResponse = deferredJsonResponse(200)
+    fetchMock.mockResolvedValueOnce(oldResponse.response)
+
+    const operation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve()
+    expect(oldResponse.json).toHaveBeenCalledTimes(1)
+    instance.auth.identityGeneration++
+    instance.auth.userID = 'new-broadcaster'
+    instance.raidState.authenticationInvalidated()
+    instance.raidState.markPending('new-target', 'New Target', new Date().toISOString())
+    oldResponse.resolveBody({ data: [{ created_at: new Date().toISOString(), is_mature: false }] })
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'new-target' })
+    instance.raidState.destroy()
+  })
+
   test('does not create pending state when Twitch rejects the start request', async () => {
     const instance = makeInstance()
     fetchMock.mockResolvedValueOnce(response({ status: 400, message: 'The channel is not in a raidable state' }, 400))
@@ -266,6 +300,27 @@ describe('raid API state transitions', () => {
 
     await expect(operation).resolves.toBe(false)
     expect(instance.raidState.pending).toMatchObject({ targetLogin: 'new-target' })
+    instance.raidState.destroy()
+  })
+
+  test('discards a parsed cancellation error after the authenticated broadcaster changes', async () => {
+    const instance = makeInstance()
+    instance.raidState.markPending('old-target', 'Old Target', new Date().toISOString())
+    const oldResponse = deferredJsonResponse(404)
+    fetchMock.mockResolvedValueOnce(oldResponse.response)
+
+    const operation = cancelRaid(instance)
+    for (let turn = 0; turn < 4; turn++) await Promise.resolve()
+    expect(oldResponse.json).toHaveBeenCalledTimes(1)
+    instance.auth.identityGeneration++
+    instance.auth.userID = 'new-broadcaster'
+    instance.raidState.authenticationInvalidated()
+    instance.raidState.markPending('new-target', 'New Target', new Date().toISOString())
+    oldResponse.resolveBody({ status: 404, message: 'Not Found' })
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'new-target' })
+    expect(instance.raidState.lastError).toBeNull()
     instance.raidState.destroy()
   })
 

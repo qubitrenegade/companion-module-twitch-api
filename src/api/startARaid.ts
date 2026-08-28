@@ -67,6 +67,7 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
     if (!authenticationIsCurrent()) return false
     instance.API.updateRatelimits(response.headers)
     const body = await parseJsonResponse<APIError | startARaidSuccess>(response)
+    if (!authenticationIsCurrent()) return false
 
     if (response.ok && body && 'data' in body && body.data[0]) {
       const displayName = target[0].display_name || target[0].login
