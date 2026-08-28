@@ -926,7 +926,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
     // Util
     selectChannel: {
       name: 'Select Channel',
-      description: '',
+      description: 'Choose the monitored channel used by selected-channel variables and actions. This does not change the authenticated account used to start or cancel raids.',
       options: [
         {
           type: 'dropdown',

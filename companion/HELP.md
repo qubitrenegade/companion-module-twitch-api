@@ -31,6 +31,10 @@ To include followed live channels, enable both **Include Followed Live Streams**
 
 Starting a raid is separate from browsing or changing the selection. Enable the **Raids** broadcaster permission and authenticate again before using **Raid Browser: Start Raid to Selected Candidate**, **Start Raid by Login**, or **Cancel Pending Raid**. The browser never starts a raid automatically.
 
+Raid start and cancel always apply to the Twitch account that authenticated this connection. The **Channels to monitor** list does not grant authority over those channels and does not select the channel that sends a raid. Monitoring several channels will not start several raids.
+
+The selected monitored channel is connection state, not a writable Companion variable. A fresh connection selects the first configured channel. The **Select Channel** action can change it later. It controls selected-channel variables, actions configured to use **Selected**, and the monitored-channel title examined by **Raid Browser: Refresh and Select Default Candidate**. It never changes the authenticated raid source.
+
 #### Browsing with buttons or an encoder
 
 The **Browse raid candidates with a rotary encoder** preset provides previous and next rotation actions and refreshes the list when pressed. The separate previous, next, refresh, start, cancel, and candidate-details presets can be combined into a custom surface layout. Previous and next selection wrap at the ends of the list.

@@ -61,7 +61,7 @@ export const getConfigFields = (instance: TwitchInstance): SomeCompanionConfigFi
   return [
     {
       type: 'textinput',
-      label: `Channels to monitor - Space separated. (These are the channels that will be connected to Chat, and perform actions based on if you're the Broadcaster, Moderator, or User)`,
+      label: `Channels to monitor - Space or comma separated. These channels connect to Chat and populate channel-aware actions. Raid start and cancel always use the authenticated Twitch account.`,
       id: 'channels',
       width: 12,
       default: '',
