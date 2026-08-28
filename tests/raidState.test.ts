@@ -136,10 +136,10 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
-  test('rejects an invalid target login before looking it up', async () => {
+  test.each(['missing&login=other', '@@target', ''])('rejects invalid target login %j before looking it up', async (login) => {
     const instance = makeInstance()
 
-    await expect(startARaid(instance, 'missing&login=other')).resolves.toBe(false)
+    await expect(startARaid(instance, login)).resolves.toBe(false)
 
     expect(instance.API.getUsers).not.toHaveBeenCalled()
     expect(instance.raidState.lastError).toMatchObject({ statusCode: null, message: 'Unable to start a raid because the target login is invalid.' })

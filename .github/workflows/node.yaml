@@ -28,7 +28,7 @@ jobs:
           CI: true
       - name: Test formatting
         run: |
-          yarn prettier --check src tests companion/HELP.md README.md .github/workflows/node.yaml
+          yarn prettier --check src tests companion/HELP.md README.md docs/PATCH_NOTES.md .github/workflows/node.yaml
         env:
           CI: true
       - name: Test lint

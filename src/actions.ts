@@ -690,11 +690,7 @@ export function getActions(instance: TwitchInstance): TwitchActions {
         },
       ],
       callback: async (action, context) => {
-        const login = (await context.parseVariablesInString(action.options.login)).trim().replace(/^@/, '')
-        if (!login) {
-          instance.log('warn', 'Unable to start a raid because the target login is empty')
-          return
-        }
+        const login = (await context.parseVariablesInString(action.options.login)).trim()
         await instance.API.startARaid(instance, login)
       },
     },

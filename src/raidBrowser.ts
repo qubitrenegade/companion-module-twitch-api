@@ -228,6 +228,8 @@ export class RaidBrowser {
       return false
     }
     if (!this.instance.auth.valid || !this.instance.auth.userID) {
+      if (this.refreshTimer) clearInterval(this.refreshTimer)
+      this.refreshTimer = null
       this.setDiagnostics({ status: 'waiting_for_authentication', lastError: 'A valid Twitch authentication is required' })
       this.publishState()
       this.instance.log('warn', 'Raid browser refresh requires a valid Twitch authentication')

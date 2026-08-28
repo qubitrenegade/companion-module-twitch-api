@@ -271,6 +271,26 @@ describe('RaidBrowser Twitch loading', () => {
     jest.useRealTimers()
   })
 
+  test('stops periodic refreshes after authentication becomes invalid', async () => {
+    jest.useFakeTimers()
+    const { instance, browser } = makeInstance({ raidBrowserRefreshSeconds: 1 })
+    fetchMock.mockResolvedValueOnce(response({ data: [], pagination: {} }))
+
+    browser.authenticationReady()
+    await jest.advanceTimersByTimeAsync(0)
+    instance.auth.valid = false
+
+    await jest.advanceTimersByTimeAsync(3_000)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const logMock = instance.log as jest.MockedFunction<typeof instance.log>
+    expect(logMock.mock.calls.filter(([, message]) => message === 'Raid browser refresh requires a valid Twitch authentication')).toHaveLength(1)
+    expect(browser.diagnostics.status).toBe('waiting_for_authentication')
+
+    browser.destroy()
+    jest.useRealTimers()
+  })
+
   test('does not apply default selection after its refresh is superseded', async () => {
     const { instance, browser } = makeInstance()
     instance.raidCandidates = [candidate('existing-1'), candidate('existing-2')]
@@ -401,7 +421,7 @@ describe('raid browser integration boundaries', () => {
     expect(new Auth(enabledInstance).generateScopes()).toContain('user:read:follows')
   })
 
-  test('Start Raid by Login expands variables before calling the existing endpoint', async () => {
+  test('Start Raid by Login expands variables and delegates normalization to the endpoint', async () => {
     const startARaid = jest.fn()
     const parseVariablesInString = jest.fn(async () => '  @target_login  ')
     const instance = {
@@ -419,7 +439,7 @@ describe('raid browser integration boundaries', () => {
     await actions.startRaidByLogin.callback({ options: { login: '$(custom:target)' } } as never, { parseVariablesInString } as never)
 
     expect(parseVariablesInString).toHaveBeenCalledWith('$(custom:target)')
-    expect(startARaid).toHaveBeenCalledWith(instance, 'target_login')
+    expect(startARaid).toHaveBeenCalledWith(instance, '@target_login')
   })
 
   test('upgrade script adds safe defaults without enabling the browser or follows scope', () => {
