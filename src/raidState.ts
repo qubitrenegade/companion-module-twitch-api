@@ -92,6 +92,18 @@ export class RaidState {
     this.publishState()
   }
 
+  /**
+   * Pending operations and their errors belong to the broadcaster that issued
+   * them. They cannot be carried across an authentication identity change.
+   */
+  public authenticationInvalidated(): void {
+    this.clearTimer()
+    this.clearErrorTimer()
+    this.pending = null
+    this.lastError = null
+    this.publishState()
+  }
+
   public destroy(): void {
     this.clearTimer()
     this.clearErrorTimer()

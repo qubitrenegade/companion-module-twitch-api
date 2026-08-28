@@ -144,10 +144,7 @@ export class Auth {
           // A device-token response identifies the granted scopes but not the
           // broadcaster. Clear any identity from an earlier authorization and
           // let token validation populate userID before shared startup begins.
-          this.valid = false
-          this.login = ''
-          this.userID = ''
-          this.instance.raidBrowser.authenticationInvalidated()
+          this.invalidateIdentity()
           this.validateTokens()
         } else {
           if (body.message === 'authorization_pending') {
@@ -297,7 +294,7 @@ export class Auth {
           this.validateTokens()
         } else {
           this.instance.log('warn', `Unable to refresh tokens, token might be expired or invalid such as from importing an old config. Please authenticate again.`)
-          this.valid = false
+          this.invalidateIdentity()
           this.accessToken = ''
           this.refreshToken = ''
           this.instance.saveConfig({ ...this.instance.config, accessToken: '', refreshToken: '' })
@@ -320,6 +317,20 @@ export class Auth {
     this.instance.API.initialPoll()
     this.instance.API.pollData()
     this.instance.raidBrowser.authenticationReady()
+  }
+
+  /**
+   * Authentication state belongs to one broadcaster. Clearing all consumers
+   * together prevents controls created for an old account from acting on the
+   * next account after reauthorization.
+   */
+  private invalidateIdentity = (): void => {
+    this.valid = false
+    this.login = ''
+    this.userID = ''
+    this.scopes = []
+    this.instance.raidBrowser.authenticationInvalidated()
+    this.instance.raidState.authenticationInvalidated()
   }
 
   /**

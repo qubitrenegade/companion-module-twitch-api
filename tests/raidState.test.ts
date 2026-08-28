@@ -91,6 +91,17 @@ describe('raid countdown state', () => {
 
     expect(instance.raidState.lastError).toMatchObject({ operation: 'cancel', statusCode: null, message: 'Network unavailable' })
   })
+
+  test('clears pending and error state when broadcaster authentication changes', () => {
+    const instance = makeInstance()
+    instance.raidState.markPending('target', 'Target', '2026-08-28T12:00:00Z')
+    instance.raidState.markError('cancel', 'Old account error')
+
+    instance.raidState.authenticationInvalidated()
+
+    expect(instance.raidState.pending).toBeNull()
+    expect(instance.raidState.lastError).toBeNull()
+  })
 })
 
 describe('raid API state transitions', () => {
