@@ -52,6 +52,12 @@ export class Variables {
     variables.add({ name: 'Raid Candidate Viewers (formatted)', variableId: 'raid_candidate_viewers_formatted' })
     variables.add({ name: 'Raid Candidate Category', variableId: 'raid_candidate_category' })
     variables.add({ name: 'Raid Candidate Title', variableId: 'raid_candidate_title' })
+    variables.add({ name: 'Raid Candidate Tags', variableId: 'raid_candidate_tags' })
+    variables.add({ name: 'Raid Candidate Tags JSON', variableId: 'raid_candidate_tags_json' })
+    variables.add({ name: 'Raid Candidate Language', variableId: 'raid_candidate_language' })
+    variables.add({ name: 'Raid Candidate Started At', variableId: 'raid_candidate_started_at' })
+    variables.add({ name: 'Raid Candidate Uptime', variableId: 'raid_candidate_uptime' })
+    variables.add({ name: 'Raid Candidate Thumbnail URL', variableId: 'raid_candidate_thumbnail_url' })
     variables.add({ name: 'Raid Candidate Source Type', variableId: 'raid_candidate_source_type' })
     variables.add({ name: 'Raid Candidate Source Name', variableId: 'raid_candidate_source_name' })
     variables.add({ name: 'Raid Candidate Available', variableId: 'raid_candidate_available' })
@@ -60,6 +66,12 @@ export class Variables {
     variables.add({ name: 'Raid Browser Last Refresh', variableId: 'raid_browser_last_refresh' })
     variables.add({ name: 'Raid Browser Last Error', variableId: 'raid_browser_last_error' })
     variables.add({ name: 'Raid Browser Source Summary', variableId: 'raid_browser_source_summary' })
+    variables.add({ name: 'Raid Pending', variableId: 'raid_pending' })
+    variables.add({ name: 'Raid Pending Target Login', variableId: 'raid_pending_target_login' })
+    variables.add({ name: 'Raid Pending Target Display Name', variableId: 'raid_pending_target_display_name' })
+    variables.add({ name: 'Raid Pending Created At', variableId: 'raid_pending_created_at' })
+    variables.add({ name: 'Raid Pending Expires At', variableId: 'raid_pending_expires_at' })
+    variables.add({ name: 'Raid Pending Seconds Remaining', variableId: 'raid_pending_seconds_remaining' })
 
     variables.add({ name: `Selected Channel`, variableId: `selected` })
     variables.add({ name: `Selected Channel Live`, variableId: `selected_live` })
@@ -146,6 +158,13 @@ export class Variables {
     newVariables.raid_candidate_viewers_formatted = formatNumber(raidCandidate?.viewers ?? 0)
     newVariables.raid_candidate_category = raidCandidate?.category ?? ''
     newVariables.raid_candidate_title = raidCandidate?.title ?? ''
+    newVariables.raid_candidate_tags = raidCandidate?.tags.join(', ') ?? ''
+    newVariables.raid_candidate_tags_json = JSON.stringify(raidCandidate?.tags ?? [])
+    newVariables.raid_candidate_language = raidCandidate?.language ?? ''
+    newVariables.raid_candidate_started_at = raidCandidate?.startedAt ?? ''
+    const raidCandidateStartedAt = Date.parse(raidCandidate?.startedAt ?? '')
+    newVariables.raid_candidate_uptime = Number.isFinite(raidCandidateStartedAt) ? formatTime(Date.now() - raidCandidateStartedAt, 'ms', 'hh:mm:ss') : ''
+    newVariables.raid_candidate_thumbnail_url = raidCandidate?.thumbnailUrl ?? ''
     newVariables.raid_candidate_source_type = raidCandidate?.sourceType ?? ''
     newVariables.raid_candidate_source_name = raidCandidate?.sourceName ?? ''
     newVariables.raid_candidate_available = Boolean(raidCandidate).toString()
@@ -154,6 +173,12 @@ export class Variables {
     newVariables.raid_browser_last_refresh = this.instance.raidBrowser.diagnostics.lastRefreshAt
     newVariables.raid_browser_last_error = this.instance.raidBrowser.diagnostics.lastError
     newVariables.raid_browser_source_summary = this.instance.raidBrowser.diagnostics.sourceSummary
+    newVariables.raid_pending = Boolean(this.instance.raidState.pending).toString()
+    newVariables.raid_pending_target_login = this.instance.raidState.pending?.targetLogin ?? ''
+    newVariables.raid_pending_target_display_name = this.instance.raidState.pending?.targetDisplayName ?? ''
+    newVariables.raid_pending_created_at = this.instance.raidState.pending?.createdAt ?? ''
+    newVariables.raid_pending_expires_at = this.instance.raidState.pending?.expiresAt ?? ''
+    newVariables.raid_pending_seconds_remaining = this.instance.raidState.remainingSeconds()
 
     const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
     newVariables[`selected`] = selectedChannel ? selectedChannel.displayName : ''

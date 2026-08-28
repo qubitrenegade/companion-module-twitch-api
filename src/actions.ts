@@ -14,10 +14,12 @@ export interface TwitchActions {
   endPrediction: TwitchAction<EndPrediction>
   marker: TwitchAction<MarkerCallback>
   raidBrowserRefresh: TwitchAction<RaidBrowserRefreshCallback>
+  raidBrowserRefreshDefault: TwitchAction<RaidBrowserRefreshDefaultCallback>
   raidBrowserNext: TwitchAction<RaidBrowserStepCallback>
   raidBrowserPrevious: TwitchAction<RaidBrowserStepCallback>
   raidBrowserSelect: TwitchAction<RaidBrowserSelectCallback>
   raidBrowserStartSelected: TwitchAction<RaidBrowserStartSelectedCallback>
+  raidCancel: TwitchAction<RaidCancelCallback>
   startRaidByLogin: TwitchAction<StartRaidByLoginCallback>
   request: TwitchAction<RequestCallback>
 
@@ -107,6 +109,13 @@ interface RaidBrowserRefreshCallback {
   options: Record<string, never>
 }
 
+interface RaidBrowserRefreshDefaultCallback {
+  actionId: 'raidBrowserRefreshDefault'
+  options: {
+    suggestionText: string
+  }
+}
+
 interface RaidBrowserStepCallback {
   actionId: 'raidBrowserNext' | 'raidBrowserPrevious'
   options: {
@@ -123,6 +132,11 @@ interface RaidBrowserSelectCallback {
 
 interface RaidBrowserStartSelectedCallback {
   actionId: 'raidBrowserStartSelected'
+  options: Record<string, never>
+}
+
+interface RaidCancelCallback {
+  actionId: 'raidCancel'
   options: Record<string, never>
 }
 
@@ -216,9 +230,11 @@ export type ActionCallbacks =
   | EndPrediction
   | MarkerCallback
   | RaidBrowserRefreshCallback
+  | RaidBrowserRefreshDefaultCallback
   | RaidBrowserStepCallback
   | RaidBrowserSelectCallback
   | RaidBrowserStartSelectedCallback
+  | RaidCancelCallback
   | StartRaidByLoginCallback
   | RequestCallback
   | ClearChatCallback
@@ -567,6 +583,24 @@ export function getActions(instance: TwitchInstance): TwitchActions {
       },
     },
 
+    raidBrowserRefreshDefault: {
+      name: 'Raid Browser: Refresh and Select Default Candidate',
+      description: 'Refresh candidates, select an explicit "up next: @login" target from the supplied text, or select candidate 1',
+      options: [
+        {
+          type: 'textinput',
+          label: 'Suggestion Text (blank uses selected channel title)',
+          id: 'suggestionText',
+          default: '',
+          useVariables: true,
+        },
+      ],
+      callback: async (action, context) => {
+        const suggestionText = await context.parseVariablesInString(action.options.suggestionText)
+        await instance.raidBrowser.refreshAndSelectDefault(suggestionText)
+      },
+    },
+
     raidBrowserNext: {
       name: 'Raid Browser: Select Next Candidate',
       options: [
@@ -632,6 +666,15 @@ export function getActions(instance: TwitchInstance): TwitchActions {
           return
         }
         await instance.API.startARaid(instance, candidate.login)
+      },
+    },
+
+    raidCancel: {
+      name: 'Cancel Pending Raid',
+      description: 'Cancel the broadcaster raid countdown if Twitch still reports it as pending',
+      options: [],
+      callback: async () => {
+        await instance.API.cancelRaid(instance)
       },
     },
 

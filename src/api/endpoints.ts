@@ -1,5 +1,6 @@
 import { createClip } from './createClip'
 import { createClipVOD } from './createClipVOD'
+import { cancelRaid } from './cancelRaid'
 import { createPoll } from './createPoll'
 import { createPrediction } from './createPrediction'
 import { createStreamMarker } from './createStreamMarker'
@@ -31,6 +32,7 @@ import { updateChatSettings } from './updateChatSettings'
 import { updateUsers } from './updateUsers'
 
 export default class Endpoints {
+  cancelRaid = cancelRaid
   createClip = createClip
   createClipVOD = createClipVOD
   createPoll = createPoll

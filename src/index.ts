@@ -1,11 +1,4 @@
-import type {
-  CompanionActionDefinitions,
-  CompanionFeedbackDefinitions,
-  CompanionHTTPRequest,
-  CompanionHTTPResponse,
-  CompanionPresetDefinitions,
-  SomeCompanionConfigField,
-} from '@companion-module/base'
+import type { CompanionActionDefinitions, CompanionFeedbackDefinitions, CompanionHTTPRequest, CompanionHTTPResponse, SomeCompanionConfigField } from '@companion-module/base'
 import { InstanceBase, runEntrypoint } from '@companion-module/base'
 import { API } from './api'
 import { Auth } from './auth'
@@ -17,6 +10,7 @@ import { getFeedbacks } from './feedback'
 import { httpHandler } from './http'
 import { getPresets } from './presets'
 import { RaidBrowser, type RaidCandidate } from './raidBrowser'
+import { RaidState } from './raidState'
 import { selectConfiguredChannel } from './channelSelection'
 import { getUpgrades } from './upgrade'
 import { Variables } from './variables'
@@ -149,6 +143,7 @@ class TwitchInstance extends InstanceBase<Config> {
 
   public readonly chat = new Chat(this)
   public readonly raidBrowser = new RaidBrowser(this)
+  public readonly raidState = new RaidState(this)
   public readonly variables = new Variables(this)
 
   /**
@@ -199,6 +194,7 @@ class TwitchInstance extends InstanceBase<Config> {
     this.auth.destroy()
     this.API.destroy()
     this.raidBrowser.destroy()
+    this.raidState.destroy()
     if (this.updateStateInterval !== null) clearInterval(this.updateStateInterval)
 
     this.log('debug', `Instance destroyed: ${this.id}`)
@@ -279,7 +275,7 @@ class TwitchInstance extends InstanceBase<Config> {
     // Cast actions and feedbacks from VMix types to Companion types
     const actions = getActions(this) as CompanionActionDefinitions
     const feedbacks = getFeedbacks(this) as unknown as CompanionFeedbackDefinitions
-    const presets = getPresets(this) as unknown as CompanionPresetDefinitions
+    const presets = getPresets(this)
 
     this.setActionDefinitions(actions)
     this.setFeedbackDefinitions(feedbacks)

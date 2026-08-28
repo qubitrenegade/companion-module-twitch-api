@@ -7,6 +7,10 @@ export interface RaidCandidate {
   viewers: number
   category: string
   title: string
+  tags: string[]
+  language: string
+  startedAt: string
+  thumbnailUrl: string
   sourceType: 'team' | 'followed'
   sourceName: string
 }
@@ -18,6 +22,10 @@ export interface TwitchStream {
   game_name: string
   title: string
   viewer_count: number
+  tags?: string[]
+  language?: string
+  started_at?: string
+  thumbnail_url?: string
 }
 
 interface TwitchTeamUser {
@@ -84,9 +92,18 @@ export const normalizeRaidCandidates = (streams: TwitchStream[], sourceType: Rai
       viewers: stream.viewer_count,
       category: stream.game_name,
       title: stream.title,
+      tags: Array.isArray(stream.tags) ? stream.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+      language: typeof stream.language === 'string' ? stream.language : '',
+      startedAt: typeof stream.started_at === 'string' ? stream.started_at : '',
+      thumbnailUrl: typeof stream.thumbnail_url === 'string' ? stream.thumbnail_url : '',
       sourceType,
       sourceName,
     }))
+}
+
+export const parseSuggestedRaidLogin = (text: string): string => {
+  const match = /\bup\s+next\b\s*(?::|-)?\s*@([a-z0-9_]{1,25})\b/i.exec(text)
+  return match?.[1]?.toLowerCase() ?? ''
 }
 
 /**
@@ -270,6 +287,24 @@ export class RaidBrowser {
     }
     this.publishState()
     this.logSelection(previousIndex)
+  }
+
+  public async refreshAndSelectDefault(suggestionText = ''): Promise<void> {
+    await this.refresh()
+    if (this.instance.raidCandidates.length === 0) return
+
+    const selectedChannel = this.instance.channels.find((channel) => channel.username === this.instance.selectedChannel)
+    const sourceText = suggestionText.trim() || selectedChannel?.title || ''
+    const suggestedLogin = parseSuggestedRaidLogin(sourceText)
+    const suggestedIndex = suggestedLogin ? this.instance.raidCandidates.findIndex((candidate) => candidate.login.toLowerCase() === suggestedLogin) : -1
+
+    this.selectIndex(suggestedIndex >= 0 ? suggestedIndex + 1 : 1)
+
+    if (suggestedIndex >= 0) {
+      this.instance.log('info', `Selected suggested raid candidate @${suggestedLogin}`)
+    } else if (suggestedLogin) {
+      this.instance.log('debug', `Suggested raid candidate @${suggestedLogin} is not in the live candidate list; selected candidate 1`)
+    }
   }
 
   private logSelection(previousIndex: number): void {

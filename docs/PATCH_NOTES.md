@@ -1,10 +1,13 @@
-# Path Notes
+# Patch Notes
 
 **v4.3.0**
 
 - Added a configurable raid-target browser for prioritized Twitch teams and followed live channels
 - Added wrapped previous, next, direct-select, refresh, and explicit start-raid actions
-- Added raid candidate variables, feedbacks, presets, pagination, source isolation, and refresh concurrency protection
+- Added default selection from an explicit `up next: @login` title phrase
+- Added cancel-raid state, variables, feedback, and a local countdown estimate
+- Added raid candidate tags, language, start time, uptime, and thumbnail metadata
+- Added typed button and rotary presets, pagination, source isolation, and refresh concurrency protection
 
 **v4.2.0**
 

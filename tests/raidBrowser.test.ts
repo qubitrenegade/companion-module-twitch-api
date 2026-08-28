@@ -2,10 +2,12 @@ import { getActions } from '../src/actions'
 import { Auth } from '../src/auth'
 import type { Config } from '../src/config'
 import { getUpgrades } from '../src/upgrade'
+import { getPresets } from '../src/presets'
 import {
   mergeRaidCandidateGroups,
   normalizeRaidCandidates,
   parseRaidBrowserTeams,
+  parseSuggestedRaidLogin,
   preserveRaidCandidateSelection,
   RaidBrowser,
   type RaidCandidate,
@@ -21,6 +23,10 @@ const stream = (id: string, viewers: number, name = `User ${id}`): TwitchStream 
   game_name: `Game ${id}`,
   title: `Title ${id}`,
   viewer_count: viewers,
+  tags: [`Tag ${id}`],
+  language: 'en',
+  started_at: '2026-08-28T00:00:00Z',
+  thumbnail_url: `https://example.com/${id}/{width}x{height}.jpg`,
 })
 
 const candidate = (id: string, viewers = 1, sourceName = 'Team A'): RaidCandidate => ({
@@ -30,6 +36,10 @@ const candidate = (id: string, viewers = 1, sourceName = 'Team A'): RaidCandidat
   viewers,
   category: `Game ${id}`,
   title: `Title ${id}`,
+  tags: [`Tag ${id}`],
+  language: 'en',
+  startedAt: '2026-08-28T00:00:00Z',
+  thumbnailUrl: `https://example.com/${id}/{width}x{height}.jpg`,
   sourceType: sourceName === 'Followed' ? 'followed' : 'team',
   sourceName,
 })
@@ -87,8 +97,28 @@ describe('raid candidate transforms', () => {
     expect(normalizeRaidCandidates([stream('2', 12)], 'followed', 'Followed')).toEqual([candidate('2', 12, 'Followed')])
   })
 
+  test('tolerates streams that omit optional raid display metadata', () => {
+    const minimalStream = stream('3', 9)
+    delete minimalStream.tags
+    delete minimalStream.language
+    delete minimalStream.started_at
+    delete minimalStream.thumbnail_url
+
+    expect(normalizeRaidCandidates([minimalStream], 'team', 'Team A')[0]).toMatchObject({
+      tags: [],
+      language: '',
+      startedAt: '',
+      thumbnailUrl: '',
+    })
+  })
+
   test('parses comma and newline separated teams without duplicate names', () => {
     expect(parseRaidBrowserTeams(' Alpha, beta\nALPHA, Gamma ')).toEqual(['Alpha', 'beta', 'Gamma'])
+  })
+
+  test('extracts only an explicit up-next Twitch login', () => {
+    expect(parseSuggestedRaidLogin('Drum and bass. Up next: @PlethoTechno!')).toBe('plethotechno')
+    expect(parseSuggestedRaidLogin('Live with @guest, raid later')).toBe('')
   })
 
   test('sorts within sources, preserves source priority, deduplicates, and excludes self', () => {
@@ -233,6 +263,30 @@ describe('RaidBrowser Twitch loading', () => {
     expect(instance.log).toHaveBeenCalledWith('debug', 'Raid browser selection: 2 -> 1 of 2 (@user1)')
   })
 
+  test('refreshes and selects an up-next candidate from the selected channel title', async () => {
+    const { instance, browser } = makeInstance()
+    instance.channels = [{ username: 'self', title: 'Up next: @user1' }] as TwitchInstance['channels']
+    instance.selectedChannel = 'self'
+    fetchMock.mockResolvedValueOnce(response({ data: [stream('2', 20), stream('1', 10)], pagination: {} }))
+
+    await browser.refreshAndSelectDefault()
+
+    expect(instance.raidCandidates[instance.raidCandidateIndex]?.login).toBe('user1')
+    expect(instance.log).toHaveBeenCalledWith('info', 'Selected suggested raid candidate @user1')
+  })
+
+  test('refreshes and selects candidate 1 when no up-next target is live', async () => {
+    const { instance, browser } = makeInstance()
+    instance.raidCandidateIndex = 1
+    instance.channels = [{ username: 'self', title: 'Up next: @offline_user' }] as TwitchInstance['channels']
+    instance.selectedChannel = 'self'
+    fetchMock.mockResolvedValueOnce(response({ data: [stream('2', 20), stream('1', 10)], pagination: {} }))
+
+    await browser.refreshAndSelectDefault()
+
+    expect(instance.raidCandidateIndex).toBe(0)
+  })
+
   test('waits for the Twitch reset header before retrying one rate-limited request', async () => {
     const { instance, browser } = makeInstance()
     fetchMock
@@ -260,6 +314,24 @@ describe('RaidBrowser Twitch loading', () => {
 })
 
 describe('raid browser integration boundaries', () => {
+  test('defines a Companion rotary preset with exact-label variables', () => {
+    const presets = getPresets({ label: 'Twitch' } as TwitchInstance)
+    const encoder = presets.raidBrowserEncoder
+
+    expect(encoder).toMatchObject({
+      type: 'button',
+      options: { rotaryActions: true, stepAutoProgress: false },
+      steps: [
+        {
+          down: [{ actionId: 'raidBrowserRefreshDefault' }],
+          rotate_left: [{ actionId: 'raidBrowserPrevious' }],
+          rotate_right: [{ actionId: 'raidBrowserNext' }],
+        },
+      ],
+    })
+    expect(encoder?.type === 'button' ? encoder.style.text : '').toContain('$(Twitch:raid_candidate_login)')
+  })
+
   test('adds the follows scope only when its permission is enabled', () => {
     const disabledInstance = { config: { userReadFollows: false } } as unknown as TwitchInstance
     const enabledInstance = { config: { userReadFollows: true } } as unknown as TwitchInstance

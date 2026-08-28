@@ -15,6 +15,7 @@ export interface TwitchFeedbacks {
   raidCandidateAvailable: TwitchFeedback<RaidCandidateAvailableCallback>
   raidBrowserHasCandidates: TwitchFeedback<RaidBrowserHasCandidatesCallback>
   raidCandidateSource: TwitchFeedback<RaidCandidateSourceCallback>
+  raidPending: TwitchFeedback<RaidPendingCallback>
 
   // Index signature
   [key: string]: TwitchFeedback<any>
@@ -53,6 +54,11 @@ interface RaidCandidateSourceCallback {
   options: Readonly<{
     sourceName: string
   }>
+}
+
+interface RaidPendingCallback {
+  type: 'raidPending'
+  options: Record<string, never>
 }
 
 // Callback type for Presets
@@ -207,6 +213,18 @@ export function getFeedbacks(instance: TwitchInstance): TwitchFeedbacks {
         const sourceName = instance.raidCandidates[instance.raidCandidateIndex]?.sourceName
         return sourceName !== undefined && sourceName.toLowerCase() === feedback.options.sourceName.trim().toLowerCase()
       },
+    },
+
+    raidPending: {
+      type: 'boolean',
+      name: 'Raid Pending',
+      description: 'Indicates whether this module has started a raid countdown that may still be canceled',
+      options: [],
+      style: {
+        color: combineRgb(255, 255, 255),
+        bgcolor: combineRgb(180, 0, 0),
+      },
+      callback: (): boolean => instance.raidState.pending !== null,
     },
   }
 }
