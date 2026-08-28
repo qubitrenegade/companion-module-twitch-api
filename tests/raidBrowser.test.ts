@@ -260,6 +260,22 @@ describe('RaidBrowser Twitch loading', () => {
     })
   })
 
+  test.each([
+    { body: null, status: 200, message: 'Followed: Twitch returned an invalid response' },
+    { body: 'upstream failure', status: 502, message: 'Followed: Twitch returned HTTP 502' },
+  ])('handles a JSON primitive browser response with status $status', async ({ body, status, message }) => {
+    const { browser } = makeInstance()
+    fetchMock.mockResolvedValueOnce(response(body, status))
+
+    await browser.refresh()
+
+    expect(browser.diagnostics).toMatchObject({
+      status: 'error',
+      lastError: message,
+      sourceSummary: 'Followed: failed',
+    })
+  })
+
   test('prevents an older overlapping refresh from overwriting newer state', async () => {
     const { instance, browser } = makeInstance()
     const first = deferred<Response>()

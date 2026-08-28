@@ -517,4 +517,16 @@ describe('user lookup request construction', () => {
     })
     instance.raidState.destroy()
   })
+
+  test('rejects an error response even when it contains a data array', async () => {
+    const instance = makeInstance()
+    fetchMock.mockResolvedValueOnce(response({ data: [] }, 502))
+
+    await expect(getUsers(instance, { type: 'login', channels: 'target', throwOnError: true })).rejects.toMatchObject({
+      name: 'GetUsersError',
+      message: 'Twitch returned HTTP 502',
+      statusCode: 502,
+    })
+    instance.raidState.destroy()
+  })
 })

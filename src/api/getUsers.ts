@@ -68,7 +68,7 @@ export const getUsers = async (instance: TwitchInstance, options: GetUsersOption
     return []
   }
 
-  if ('data' in body && Array.isArray(body.data)) return body.data as User[]
+  if (response.ok && 'data' in body && Array.isArray(body.data)) return body.data as User[]
 
   const statusCode = 'status' in body && typeof body.status === 'number' ? body.status : response.status
   const message =
