@@ -12,7 +12,7 @@ export interface PendingRaid {
 
 export interface RaidOperationError {
   operation: 'start' | 'cancel'
-  statusCode: number
+  statusCode: number | null
   message: string
   occurredAt: string
   displayUntil: string
@@ -62,7 +62,7 @@ export class RaidState {
     this.publishState()
   }
 
-  public markError(operation: RaidOperationError['operation'], message: string, statusCode = 0): void {
+  public markError(operation: RaidOperationError['operation'], message: string, statusCode: number | null = null): void {
     this.clearErrorTimer()
 
     const now = Date.now()

@@ -71,6 +71,14 @@ describe('raid countdown state', () => {
     expect(instance.raidState.errorActive()).toBe(false)
     expect(instance.raidState.lastError).toMatchObject({ operation: 'start', statusCode: 429, message: 'Too Many Requests' })
   })
+
+  test('represents a non-HTTP error without inventing a status code', () => {
+    const instance = makeInstance()
+
+    instance.raidState.markError('cancel', 'Network unavailable')
+
+    expect(instance.raidState.lastError).toMatchObject({ operation: 'cancel', statusCode: null, message: 'Network unavailable' })
+  })
 })
 
 describe('raid API state transitions', () => {

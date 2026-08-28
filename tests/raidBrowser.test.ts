@@ -288,15 +288,23 @@ describe('RaidBrowser Twitch loading', () => {
   })
 
   test('waits for the Twitch reset header before retrying one rate-limited request', async () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2026-08-28T12:00:00Z'))
+    const removeListener = jest.spyOn(AbortSignal.prototype, 'removeEventListener')
     const { instance, browser } = makeInstance()
     fetchMock
-      .mockResolvedValueOnce(response({ message: 'Too Many Requests' }, 429, { 'Ratelimit-Reset': Math.floor(Date.now() / 1000).toString() }))
+      .mockResolvedValueOnce(response({ message: 'Too Many Requests' }, 429, { 'Ratelimit-Reset': String(Date.now() / 1000 + 1) }))
       .mockResolvedValueOnce(response({ data: [stream('1', 10)], pagination: {} }))
 
-    await browser.refresh()
+    const refresh = browser.refresh()
+    await jest.advanceTimersByTimeAsync(1000)
+    await refresh
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(instance.raidCandidates.map((item) => item.userId)).toEqual(['1'])
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+    removeListener.mockRestore()
+    jest.useRealTimers()
   })
 
   test('does not poll or request browser APIs while disabled', async () => {

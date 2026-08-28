@@ -149,15 +149,25 @@ const waitUntil = async (timestampMs: number, signal: AbortSignal): Promise<void
   if (delay === 0) return
 
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, delay)
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        reject(new DOMException('Aborted', 'AbortError'))
-      },
-      { once: true },
-    )
+    let settled = false
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, delay)
+
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    // AbortSignal does not replay an abort that occurs between the initial
+    // check and listener registration, so close that race explicitly.
+    if (signal.aborted) onAbort()
   })
 }
 

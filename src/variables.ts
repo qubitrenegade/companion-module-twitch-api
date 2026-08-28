@@ -186,7 +186,7 @@ export class Variables {
     newVariables.raid_pending_seconds_remaining = this.instance.raidState.remainingSeconds()
     newVariables.raid_error_active = this.instance.raidState.errorActive().toString()
     newVariables.raid_error_operation = this.instance.raidState.lastError?.operation ?? ''
-    newVariables.raid_error_status = this.instance.raidState.lastError?.statusCode || ''
+    newVariables.raid_error_status = this.instance.raidState.lastError?.statusCode ?? ''
     newVariables.raid_error_message = this.instance.raidState.lastError?.message ?? ''
     newVariables.raid_error_occurred_at = this.instance.raidState.lastError?.occurredAt ?? ''
 

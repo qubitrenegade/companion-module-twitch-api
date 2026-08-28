@@ -89,5 +89,10 @@ describe('raid variable contract', () => {
         raid_error_message: 'Too Many Requests',
       }),
     )
+
+    if (instance.raidState.lastError) instance.raidState.lastError.statusCode = null
+    variables.updateVariables()
+
+    expect(setVariableValues).toHaveBeenLastCalledWith(expect.objectContaining({ raid_error_status: '' }))
   })
 })
