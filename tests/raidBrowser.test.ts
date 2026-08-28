@@ -292,6 +292,24 @@ describe('RaidBrowser Twitch loading', () => {
     jest.useRealTimers()
   })
 
+  test('prevents an in-flight refresh from restoring state after authentication becomes invalid', async () => {
+    const { instance, browser } = makeInstance()
+    const request = deferred<Response>()
+    fetchMock.mockReturnValueOnce(request.promise)
+
+    const staleRefresh = browser.refresh()
+    instance.auth.valid = false
+    await browser.refresh()
+    request.resolve(response({ data: [stream('stale', 10)], pagination: {} }))
+    await staleRefresh
+
+    expect(instance.raidCandidates).toEqual([])
+    expect(browser.diagnostics).toMatchObject({
+      status: 'waiting_for_authentication',
+      lastError: 'A valid Twitch authentication is required',
+    })
+  })
+
   test('does not apply default selection after its refresh is superseded', async () => {
     const { instance, browser } = makeInstance()
     instance.raidCandidates = [candidate('existing-1'), candidate('existing-2')]

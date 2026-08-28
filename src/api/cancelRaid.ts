@@ -4,7 +4,7 @@ import { type APIError, parseJsonResponse } from '../api'
 export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => {
   instance.raidState.clearError()
 
-  if (!instance.auth.userID) {
+  if (!instance.auth.valid || !instance.auth.userID) {
     const message = 'Unable to cancel a raid because a valid broadcaster authentication is required.'
     instance.raidState.markError('cancel', message)
     instance.log('warn', message)

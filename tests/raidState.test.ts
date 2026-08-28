@@ -25,6 +25,7 @@ const nonJsonResponse = (status: number): Response =>
 const makeInstance = () => {
   const instance = {
     auth: {
+      valid: true,
       userID: 'self',
       scopes: ['channel:manage:raids'],
     },
@@ -98,6 +99,29 @@ describe('raid API state transitions', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     global.fetch = fetchMock
+  })
+
+  test('rejects a start request when cached identity remains after authentication becomes invalid', async () => {
+    const instance = makeInstance()
+    instance.auth.valid = false
+
+    await expect(startARaid(instance, 'target')).resolves.toBe(false)
+
+    expect(instance.API.getUsers).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(instance.raidState.lastError).toMatchObject({ message: 'Unable to start a raid because a valid broadcaster authentication is required.' })
+    instance.raidState.destroy()
+  })
+
+  test('rejects a cancellation when cached identity remains after authentication becomes invalid', async () => {
+    const instance = makeInstance()
+    instance.auth.valid = false
+
+    await expect(cancelRaid(instance)).resolves.toBe(false)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(instance.raidState.lastError).toMatchObject({ message: 'Unable to cancel a raid because a valid broadcaster authentication is required.' })
+    instance.raidState.destroy()
   })
 
   test('marks a raid pending after Twitch accepts the start request', async () => {

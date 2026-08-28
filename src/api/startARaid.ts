@@ -12,7 +12,7 @@ type startARaidSuccess = {
 export const startARaid = async (instance: TwitchInstance, targetUsername: string): Promise<boolean> => {
   instance.raidState.clearError()
 
-  if (!instance.auth.userID) {
+  if (!instance.auth.valid || !instance.auth.userID) {
     const message = 'Unable to start a raid because a valid broadcaster authentication is required.'
     instance.raidState.markError('start', message)
     instance.log('warn', message)
