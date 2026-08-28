@@ -16,6 +16,10 @@ describe('device-code authentication startup', () => {
 
   test('validates the broadcaster identity before starting the raid browser', async () => {
     let auth!: Auth
+    const authenticationInvalidated = jest.fn(() => {
+      expect(auth.userID).toBe('')
+      expect(auth.valid).toBe(false)
+    })
     const authenticationReady = jest.fn(() => {
       expect(auth.userID).toBe('new-user-id')
       expect(auth.valid).toBe(true)
@@ -27,7 +31,7 @@ describe('device-code authentication startup', () => {
       chat: { init: jest.fn() },
       updateInstance: jest.fn(),
       API: { initialPoll: jest.fn(), pollData: jest.fn() },
-      raidBrowser: { authenticationReady },
+      raidBrowser: { authenticationInvalidated, authenticationReady },
     } as unknown as TwitchInstance
     auth = new Auth(instance)
     Object.defineProperty(instance, 'auth', { value: auth })
@@ -41,7 +45,9 @@ describe('device-code authentication startup', () => {
     for (let turn = 0; turn < 8; turn++) await Promise.resolve()
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(authenticationInvalidated).toHaveBeenCalledTimes(1)
     expect(authenticationReady).toHaveBeenCalledTimes(1)
+    expect(authenticationInvalidated.mock.invocationCallOrder[0]).toBeLessThan(authenticationReady.mock.invocationCallOrder[0])
     expect(instance.saveConfig).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'new-access', refreshToken: 'new-refresh' }))
 
     auth.destroy()

@@ -147,6 +147,7 @@ export class Auth {
           this.valid = false
           this.login = ''
           this.userID = ''
+          this.instance.raidBrowser.authenticationInvalidated()
           this.validateTokens()
         } else {
           if (body.message === 'authorization_pending') {

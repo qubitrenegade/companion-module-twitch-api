@@ -196,6 +196,17 @@ export class RaidBrowser {
     this.reconfigure(true)
   }
 
+  /**
+   * Remove state owned by the previous broadcaster before validating a new
+   * identity. A request started with the old token must not publish candidates
+   * after the replacement token has begun authentication.
+   */
+  public authenticationInvalidated(lastError = ''): void {
+    this.stop()
+    this.setDiagnostics({ status: 'waiting_for_authentication', lastError, sourceSummary: '' })
+    this.replaceCandidates([])
+  }
+
   public reconfigure(refreshImmediately = false): void {
     this.stop()
     this.followsScopeWarningKey = ''
@@ -207,8 +218,7 @@ export class RaidBrowser {
     }
 
     if (!this.instance.auth.valid) {
-      this.setDiagnostics({ status: 'waiting_for_authentication', lastError: '', sourceSummary: '' })
-      this.publishState()
+      this.authenticationInvalidated()
       return
     }
 
@@ -228,9 +238,7 @@ export class RaidBrowser {
       return false
     }
     if (!this.instance.auth.valid || !this.instance.auth.userID) {
-      this.stop()
-      this.setDiagnostics({ status: 'waiting_for_authentication', lastError: 'A valid Twitch authentication is required' })
-      this.publishState()
+      this.authenticationInvalidated('A valid Twitch authentication is required')
       this.instance.log('warn', 'Raid browser refresh requires a valid Twitch authentication')
       return false
     }
