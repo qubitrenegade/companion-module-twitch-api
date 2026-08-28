@@ -1,6 +1,6 @@
 import type TwitchInstance from './index'
 
-export const RAID_BROWSER_REFRESH_TIMEOUT_MS = 15_000
+export const RAID_BROWSER_SOURCE_TIMEOUT_MS = 15_000
 
 export interface RaidCandidate {
   userId: string
@@ -258,20 +258,8 @@ export class RaidBrowser {
     this.publishState()
     this.instance.log('debug', 'Raid browser refresh started')
 
-    let refreshTimeout: ReturnType<typeof setTimeout> | null = null
-    let refreshTimedOut = false
     try {
-      const sourceResults = await Promise.race([
-        this.loadCandidateGroups(controller.signal),
-        new Promise<never>((_resolve, reject) => {
-          refreshTimeout = setTimeout(() => {
-            refreshTimedOut = true
-            const error = new Error('Raid browser refresh timed out')
-            controller.abort(error)
-            reject(error)
-          }, RAID_BROWSER_REFRESH_TIMEOUT_MS)
-        }),
-      ])
+      const sourceResults = await this.loadCandidateGroups(controller.signal)
       if (generation !== this.refreshGeneration || controller.signal.aborted) return false
 
       const candidates = mergeRaidCandidateGroups(
@@ -294,7 +282,7 @@ export class RaidBrowser {
       this.instance.log(candidates.length > 0 ? 'info' : 'warn', message)
       return true
     } catch (error) {
-      if (generation === this.refreshGeneration && (!controller.signal.aborted || refreshTimedOut)) {
+      if (!controller.signal.aborted) {
         const message = error instanceof Error ? error.message : String(error)
         this.setDiagnostics({ status: 'error', lastRefreshAt: new Date().toISOString(), lastError: message })
         this.publishState()
@@ -302,7 +290,6 @@ export class RaidBrowser {
       }
       return false
     } finally {
-      if (refreshTimeout) clearTimeout(refreshTimeout)
       if (generation === this.refreshGeneration) this.refreshController = null
     }
   }
@@ -387,7 +374,7 @@ export class RaidBrowser {
   private async loadCandidateGroups(signal: AbortSignal): Promise<RaidCandidateSourceResult[]> {
     const groupPromises = parseRaidBrowserTeams(this.instance.config.raidBrowserTeams).map(async (teamName) => {
       try {
-        const candidates = await this.loadTeam(teamName, signal)
+        const candidates = await this.loadSourceWithTimeout(async (sourceSignal) => this.loadTeam(teamName, sourceSignal), signal)
         return { candidates, summary: `${teamName}: ${candidates.length} live`, error: '' }
       } catch (error) {
         if (signal.aborted) throw error
@@ -417,7 +404,7 @@ export class RaidBrowser {
           }
 
           try {
-            const candidates = await this.loadFollowed(signal)
+            const candidates = await this.loadSourceWithTimeout(async (sourceSignal) => this.loadFollowed(sourceSignal), signal)
             return { candidates, summary: `Followed: ${candidates.length} live`, error: '' }
           } catch (error) {
             if (signal.aborted) throw error
@@ -430,6 +417,27 @@ export class RaidBrowser {
     }
 
     return Promise.all(groupPromises)
+  }
+
+  private async loadSourceWithTimeout<T>(load: (signal: AbortSignal) => Promise<T>, parentSignal: AbortSignal): Promise<T> {
+    const controller = new AbortController()
+    const abortFromParent = () => controller.abort(parentSignal.reason)
+    if (parentSignal.aborted) abortFromParent()
+    else parentSignal.addEventListener('abort', abortFromParent, { once: true })
+
+    const timeout = setTimeout(() => controller.abort(new Error('Raid browser source timed out')), RAID_BROWSER_SOURCE_TIMEOUT_MS)
+    const aborted = new Promise<never>((_resolve, reject) => {
+      const rejectOnAbort = () => reject(controller.signal.reason instanceof Error ? controller.signal.reason : new Error('Raid browser source aborted'))
+      if (controller.signal.aborted) rejectOnAbort()
+      else controller.signal.addEventListener('abort', rejectOnAbort, { once: true })
+    })
+
+    try {
+      return await Promise.race([load(controller.signal), aborted])
+    } finally {
+      clearTimeout(timeout)
+      parentSignal.removeEventListener('abort', abortFromParent)
+    }
   }
 
   private async loadTeam(teamName: string, signal: AbortSignal): Promise<RaidCandidate[]> {

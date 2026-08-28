@@ -128,4 +128,32 @@ describe('device-code authentication startup', () => {
 
     auth.destroy()
   })
+
+  test('does not restart module services when validation completes after destruction', async () => {
+    const validation = deferred<Response>()
+    const authenticationReady = jest.fn()
+    const instance = {
+      config: { accessToken: 'access', refreshToken: 'refresh' },
+      saveConfig: jest.fn(),
+      log: jest.fn(),
+      chat: { init: jest.fn() },
+      updateInstance: jest.fn(),
+      API: { initialPoll: jest.fn(), pollData: jest.fn() },
+      raidBrowser: { authenticationInvalidated: jest.fn(), authenticationReady },
+      raidState: { authenticationInvalidated: jest.fn() },
+    } as unknown as TwitchInstance
+    const auth = new Auth(instance)
+    Object.defineProperty(instance, 'auth', { value: auth })
+    fetchMock.mockReturnValueOnce(validation.promise)
+
+    auth.init()
+    auth.destroy()
+    validation.resolve(response({ client_id: 'client', login: 'late-user', scopes: [], user_id: 'late-user-id', expires_in: 3600 }))
+    for (let turn = 0; turn < 8; turn++) await Promise.resolve()
+
+    expect(auth.valid).toBe(false)
+    expect(authenticationReady).not.toHaveBeenCalled()
+    expect(instance.chat.init).not.toHaveBeenCalled()
+    expect(instance.API.pollData).not.toHaveBeenCalled()
+  })
 })

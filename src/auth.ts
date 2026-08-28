@@ -106,6 +106,7 @@ export class Auth {
   clientID = '0v78s08sgp7j9am52mpmqcztoz5mvw'
   deviceCode: string | null = null
   deviceCodeInterval: number = 5000
+  destroyed = false
   identityGeneration = 0
   login = ''
   pollDeviceCode: ReturnType<typeof setTimeout> | null = null
@@ -131,6 +132,7 @@ export class Auth {
     fetch(url, { method: 'POST' })
       .then(async (res) => res.json() as Promise<CheckDeviceCodeSuccess | CheckDeviceCodePending | CheckDeviceCodeInvalid>)
       .then((body) => {
+        if (this.destroyed) return
         if ('access_token' in body) {
           this.instance.log('debug', `Got DCF Tokens - ${JSON.stringify(body, null, 2)}`)
           this.accessToken = body.access_token
@@ -159,6 +161,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (this.destroyed) return
         this.instance.log('error', `Error checking Device Code: ${err.message || err}`)
       })
   }
@@ -167,8 +170,13 @@ export class Auth {
    * Clean up timers
    */
   destroy = (): void => {
+    this.destroyed = true
+    this.identityGeneration++
+    this.valid = false
     if (this.pollDeviceCode) clearTimeout(this.pollDeviceCode)
     if (this.pollTokenCheck) clearInterval(this.pollTokenCheck)
+    this.pollDeviceCode = null
+    this.pollTokenCheck = null
   }
 
   /**
@@ -183,6 +191,7 @@ export class Auth {
     return fetch(url, { method: 'POST' })
       .then(async (res) => res.json() as Promise<GetDeviceCode>)
       .then((body) => {
+        if (this.destroyed) return null
         this.deviceCode = body.device_code
         this.userCode = body.user_code
         this.verificationURL = body.verification_uri
@@ -320,6 +329,7 @@ export class Auth {
    * Start Chat and API processes with valid tokens
    */
   private startup = (): void => {
+    if (this.destroyed) return
     this.valid = true
     this.instance.chat.init()
     this.instance.updateInstance()
