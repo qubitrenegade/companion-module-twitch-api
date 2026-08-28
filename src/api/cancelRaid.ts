@@ -18,11 +18,16 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
     return false
   }
 
+  const broadcasterID = instance.auth.userID
+  const identityGeneration = instance.auth.identityGeneration
+  const authenticationIsCurrent = (): boolean => instance.auth.valid && instance.auth.identityGeneration === identityGeneration && instance.auth.userID === broadcasterID
+
   const requestOptions = instance.API.defaultOptions()
   requestOptions.method = 'DELETE'
 
   try {
-    const response = await fetch(`https://api.twitch.tv/helix/raids?broadcaster_id=${instance.auth.userID}`, requestOptions)
+    const response = await fetch(`https://api.twitch.tv/helix/raids?broadcaster_id=${broadcasterID}`, requestOptions)
+    if (!authenticationIsCurrent()) return false
     instance.API.updateRatelimits(response.headers)
 
     if (response.status === 204) {
@@ -46,6 +51,7 @@ export const cancelRaid = async (instance: TwitchInstance): Promise<boolean> => 
     instance.log('warn', `Failed to Cancel Raid: ${body ? JSON.stringify(body, null, 2) : message}`)
     return false
   } catch (error) {
+    if (!authenticationIsCurrent()) return false
     const message = error instanceof Error ? error.message : String(error)
     instance.raidState.markError('cancel', message)
     instance.log('warn', `Failed to Cancel Raid: ${message}`)

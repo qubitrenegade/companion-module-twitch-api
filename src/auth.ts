@@ -106,6 +106,7 @@ export class Auth {
   clientID = '0v78s08sgp7j9am52mpmqcztoz5mvw'
   deviceCode: string | null = null
   deviceCodeInterval: number = 5000
+  identityGeneration = 0
   login = ''
   pollDeviceCode: ReturnType<typeof setTimeout> | null = null
   pollTokenCheck: ReturnType<typeof setInterval> | null = null
@@ -276,16 +277,23 @@ export class Auth {
    * Refresh tokens using the one time use Refresh Token
    */
   private refreshTokens = async (): Promise<void> => {
+    const identityGeneration = this.identityGeneration
+    const refreshToken = this.refreshToken
     const url = 'https://id.twitch.tv/oauth2/token'
     const options = {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: this.clientID, grant_type: 'refresh_token', refresh_token: this.refreshToken }),
+      body: new URLSearchParams({ client_id: this.clientID, grant_type: 'refresh_token', refresh_token: refreshToken }),
     }
 
     fetch(url, options)
       .then(async (res) => res.json() as Promise<RefreshTokenSuccess | RefreshTokenInvalid>)
       .then((body) => {
+        if (identityGeneration !== this.identityGeneration || refreshToken !== this.refreshToken) {
+          this.instance.log('debug', 'Discarding token refresh response from a superseded authentication')
+          return
+        }
+
         if ('access_token' in body) {
           this.instance.log('debug', `Refresh tokens: ${JSON.stringify(body, null, 2)}`)
           this.accessToken = body.access_token
@@ -302,6 +310,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (identityGeneration !== this.identityGeneration || refreshToken !== this.refreshToken) return
         this.instance.log('error', `Error refreshing tokens: ${err.message || err}`)
         return null
       })
@@ -325,6 +334,7 @@ export class Auth {
    * next account after reauthorization.
    */
   private invalidateIdentity = (): void => {
+    this.identityGeneration++
     this.valid = false
     this.login = ''
     this.userID = ''
@@ -342,14 +352,22 @@ export class Auth {
     if (this.accessToken === '' || this.refreshToken === '') {
       this.instance.log('debug', `Unable to validate tokens - Access Token: ${this.accessToken} - Refresh Token: ${this.refreshToken}`)
       if (this.pollTokenCheck) clearInterval(this.pollTokenCheck)
+      return
     }
 
+    const identityGeneration = this.identityGeneration
+    const accessToken = this.accessToken
     const url = 'https://id.twitch.tv/oauth2/validate'
-    const options = { headers: { Authorization: `OAuth ${this.accessToken}` } }
+    const options = { headers: { Authorization: `OAuth ${accessToken}` } }
 
     fetch(url, options)
       .then(async (res) => res.json() as Promise<ValidateTokenSuccess | ValidateTokenInvalid>)
       .then((body) => {
+        if (identityGeneration !== this.identityGeneration || accessToken !== this.accessToken) {
+          this.instance.log('debug', 'Discarding token validation response from a superseded authentication')
+          return
+        }
+
         if ('client_id' in body) {
           // Valid Token
           this.login = body.login
@@ -371,6 +389,7 @@ export class Auth {
         }
       })
       .catch((err) => {
+        if (identityGeneration !== this.identityGeneration || accessToken !== this.accessToken) return
         this.instance.log('error', `Error validating tokens: ${err.message || err}`)
       })
   }

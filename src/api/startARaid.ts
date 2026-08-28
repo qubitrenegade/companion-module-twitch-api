@@ -26,6 +26,10 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
     return false
   }
 
+  const broadcasterID = instance.auth.userID
+  const identityGeneration = instance.auth.identityGeneration
+  const authenticationIsCurrent = (): boolean => instance.auth.valid && instance.auth.identityGeneration === identityGeneration && instance.auth.userID === broadcasterID
+
   const targetLogin = targetUsername.trim().replace(/^@/, '')
   if (!/^[a-zA-Z0-9_]{1,25}$/.test(targetLogin)) {
     const message = 'Unable to start a raid because the target login is invalid.'
@@ -38,12 +42,15 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
   try {
     target = await instance.API.getUsers(instance, { type: 'login', channels: targetLogin, throwOnError: true })
   } catch (error) {
+    if (!authenticationIsCurrent()) return false
     const message = error instanceof Error ? error.message : String(error)
     const statusCode = error instanceof GetUsersError ? error.statusCode : null
     instance.raidState.markError('start', message, statusCode)
     instance.log('warn', `Failed to resolve raid target ${targetLogin}: ${message}`)
     return false
   }
+
+  if (!authenticationIsCurrent()) return false
 
   if (!target[0]?.id) {
     const message = `Unable to raid ${targetLogin}. User not found.`
@@ -56,7 +63,8 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
   requestOptions.method = 'POST'
 
   try {
-    const response = await fetch(`https://api.twitch.tv/helix/raids?from_broadcaster_id=${instance.auth.userID}&to_broadcaster_id=${target[0].id}`, requestOptions)
+    const response = await fetch(`https://api.twitch.tv/helix/raids?from_broadcaster_id=${broadcasterID}&to_broadcaster_id=${target[0].id}`, requestOptions)
+    if (!authenticationIsCurrent()) return false
     instance.API.updateRatelimits(response.headers)
     const body = await parseJsonResponse<APIError | startARaidSuccess>(response)
 
@@ -73,6 +81,7 @@ export const startARaid = async (instance: TwitchInstance, targetUsername: strin
     instance.log('warn', `Failed to Start A Raid: ${body ? JSON.stringify(body, null, 2) : message}`)
     return false
   } catch (error) {
+    if (!authenticationIsCurrent()) return false
     const message = error instanceof Error ? error.message : String(error)
     instance.raidState.markError('start', message)
     instance.log('warn', `Failed to Start A Raid: ${message}`)

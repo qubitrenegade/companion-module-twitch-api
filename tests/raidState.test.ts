@@ -22,9 +22,18 @@ const nonJsonResponse = (status: number): Response =>
     }),
   }) as unknown as Response
 
+const deferred = <T>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 const makeInstance = () => {
   const instance = {
     auth: {
+      identityGeneration: 1,
       valid: true,
       userID: 'self',
       scopes: ['channel:manage:raids'],
@@ -146,6 +155,24 @@ describe('raid API state transitions', () => {
     instance.raidState.destroy()
   })
 
+  test('discards a start response after the authenticated broadcaster changes', async () => {
+    const instance = makeInstance()
+    const oldResponse = deferred<Response>()
+    fetchMock.mockReturnValueOnce(oldResponse.promise)
+
+    const operation = startARaid(instance, 'target')
+    for (let turn = 0; turn < 4; turn++) await Promise.resolve()
+    instance.auth.identityGeneration++
+    instance.auth.userID = 'new-broadcaster'
+    instance.raidState.authenticationInvalidated()
+    instance.raidState.markPending('new-target', 'New Target', new Date().toISOString())
+    oldResponse.resolve(response({ data: [{ created_at: new Date().toISOString(), is_mature: false }] }, 200))
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'new-target' })
+    instance.raidState.destroy()
+  })
+
   test('does not create pending state when Twitch rejects the start request', async () => {
     const instance = makeInstance()
     fetchMock.mockResolvedValueOnce(response({ status: 400, message: 'The channel is not in a raidable state' }, 400))
@@ -222,6 +249,24 @@ describe('raid API state transitions', () => {
     expect(instance.raidState.pending).toBeNull()
     instance.raidState.destroy()
     expect(instance.log).toHaveBeenCalledWith('info', 'Canceled the pending raid on Target')
+  })
+
+  test('discards a cancellation response after the authenticated broadcaster changes', async () => {
+    const instance = makeInstance()
+    instance.raidState.markPending('old-target', 'Old Target', new Date().toISOString())
+    const oldResponse = deferred<Response>()
+    fetchMock.mockReturnValueOnce(oldResponse.promise)
+
+    const operation = cancelRaid(instance)
+    instance.auth.identityGeneration++
+    instance.auth.userID = 'new-broadcaster'
+    instance.raidState.authenticationInvalidated()
+    instance.raidState.markPending('new-target', 'New Target', new Date().toISOString())
+    oldResponse.resolve(response(undefined, 204))
+
+    await expect(operation).resolves.toBe(false)
+    expect(instance.raidState.pending).toMatchObject({ targetLogin: 'new-target' })
+    instance.raidState.destroy()
   })
 
   test('clears stale local state when Twitch reports no pending raid', async () => {
